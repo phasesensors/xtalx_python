@@ -1,0 +1,48 @@
+# Copyright (c) 2021 by Phase Advanced Sensor Systems Corp.
+MODULE      := xtalx
+MODULE_VERS := 1.0.0
+MODULE_DEPS := \
+MODULES := \
+		setup.cfg \
+		setup.py \
+		xtalx/*.py \
+		xtalx/tools/*.py
+
+FLAKE_MODULES := xtalx
+LINT_MODULES  := xtalx
+WHEEL_PATH    := dist/$(MODULE)-$(MODULE_VERS)-py3-none-any.whl
+
+.PHONY: all
+all: test packages
+
+.PHONY: clean
+clean:
+	rm -rf dist $(MODULE).egg-info build
+	find . -name "*.pyc" | xargs rm 2>/dev/null || true
+	find . -name __pycache__ | xargs rm -r 2>/dev/null || true
+
+.PHONY: test
+test: flake8 lint
+
+.PHONY: flake8
+flake8:
+	python3 -m flake8 $(FLAKE_MODULES)
+
+.PHONY: lint
+lint:
+	pylint -j2 $(LINT_MODULES)
+
+.PHONY: install
+install: $(WHEEL_PATH) | uninstall
+	python3 -m pip install $(WHEEL_PATH)
+
+.PHONY: uninstall
+uninstall:
+	python3 -m pip uninstall -y xtalx
+
+.PHONY: packages
+packages: $(WHEEL_PATH)
+
+$(WHEEL_PATH): setup.py setup.cfg $(MODULES)
+	python3 setup.py sdist bdist_wheel
+	python3 -m twine check $@
