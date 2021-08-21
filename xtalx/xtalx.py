@@ -175,6 +175,29 @@ class Measurement:
                            fp.pressure_ref_clocks, fp.temp_edges,
                            fp.temp_ref_clocks, mt, p, t, flags)
 
+    def tostring(self, verbose=False):
+        s = '%s: ' % self.sensor
+        if verbose:
+            s += ('C %u pe %u prc %u pf %f te %u trc %u tf %f p %s t %s '
+                  'mt %s' % (self.ref_freq, self.pressure_edges,
+                             self.pressure_ref_clocks, self.pressure_freq,
+                             self.temp_edges, self.temp_ref_clocks,
+                             self.temp_freq, self.pressure_psi, self.temp_c,
+                             self.mcu_temp_c))
+        else:
+            if self.pressure_psi is None:
+                p = 'n/a'
+            else:
+                p = '%f' % self.pressure_psi
+
+            if self.temp_c is None:
+                t = 'n/a'
+            else:
+                t = '%f' % self.temp_c
+            s += '%s PSI, %s C' % (p, t)
+
+        return s
+
 
 class XtalX:
     '''
