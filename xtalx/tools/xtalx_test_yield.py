@@ -6,10 +6,7 @@ import xtalx
 
 
 def xtalx_cb(m):
-    print('%s: C %u pe %u prc %u pf %f te %u trc %u tf %f p %s t %s mt %s'
-          % (m.sensor, m.ref_freq, m.pressure_edges, m.pressure_ref_clocks,
-             m.pressure_freq, m.temp_edges, m.temp_ref_clocks, m.temp_freq,
-             m.pressure_psi, m.temp_c, m.mcu_temp_c))
+    print(m.tostring())
 
 
 def main(args):
