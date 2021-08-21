@@ -5,11 +5,17 @@ import argparse
 import xtalx
 
 
+VERBOSE = False
+
+
 def xtalx_cb(m):
-    print(m.tostring())
+    print(m.tostring(VERBOSE))
 
 
 def main(args):
+    global VERBOSE
+    VERBOSE = args.verbose
+
     if args.serial_number is not None:
         sensors = xtalx.find(serial_number=args.serial_number)
         if not sensors:
@@ -41,6 +47,7 @@ def main(args):
 def _main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--serial-number', '-s')
+    parser.add_argument('--verbose', '-v', action='store_true')
     try:
         main(parser.parse_args())
     except KeyboardInterrupt:
