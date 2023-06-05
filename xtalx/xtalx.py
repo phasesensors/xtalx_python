@@ -199,6 +199,10 @@ class Measurement:
         return s
 
 
+class XtalXException(Exception):
+    pass
+
+
 class XtalX:
     '''
     Given a USB device handle acquired via find() or find_one(), creates an
@@ -216,7 +220,7 @@ class XtalX:
             self.fw_version = usb_dev.bcdDevice
         except ValueError as e:
             if str(e) == 'The device has no langid':
-                raise Exception(
+                raise XtalXException(
                     'Device has no langid, ensure running as root!') from e
 
         if self.usb_dev.bcdDevice >= 0x0103:
@@ -344,8 +348,8 @@ def find_one(**kwargs):
     '''
     usb_devs = find(**kwargs)
     if len(usb_devs) > 1:
-        raise Exception('Multiple matching devices: %s' %
-                        ', '.join(ud.serial_number for ud in usb_devs))
+        raise XtalXException('Multiple matching devices: %s' %
+                             ', '.join(ud.serial_number for ud in usb_devs))
     if not usb_devs:
-        raise Exception('No matching devices.')
+        raise XtalXException('No matching devices.')
     return usb_devs[0]
