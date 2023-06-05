@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (c) 2020-2021 by Phase Advanced Sensor Systems Corp.
 import argparse
+import time
 
 import xtalx
 
@@ -8,8 +9,11 @@ import xtalx
 VERBOSE = False
 
 
-def xtalx_cb(m):
+def xtalx_cb(m, csv_file):
     print(m.tostring(VERBOSE))
+    if csv_file:
+        csv_file.write('%.6f,%.2f,%.5f\n' % (
+            time.time(), m.temp_c, m.pressure_psi))
 
 
 def main(args):
@@ -35,14 +39,22 @@ def main(args):
         return
     d = sensors[0]
 
+    if args.csv_file:
+        csv_file = open(  # pylint: disable=R1732
+            args.csv_file, 'a', encoding='utf8')
+        csv_file.write('time,temp_c,pressure_psi\n')
+    else:
+        csv_file = None
+
     for m in xtalx.XtalX(d).yield_measurements():
-        xtalx_cb(m)
+        xtalx_cb(m, csv_file)
 
 
 def _main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--serial-number', '-s')
     parser.add_argument('--verbose', '-v', action='store_true')
+    parser.add_argument('--csv-file')
     try:
         main(parser.parse_args())
     except KeyboardInterrupt:
