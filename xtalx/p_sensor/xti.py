@@ -1,10 +1,12 @@
-# Copyright (c) 2020-2021 by Phase Advanced Sensor Systems Corp.
+# Copyright (c) 2020-2023 by Phase Advanced Sensor Systems Corp.
 import threading
 import errno
 import usb
 import usb.util
 
 import btype
+
+from .exception import XtalXException
 
 
 FC_FLAGS_VALID              = (1 << 15)
@@ -75,10 +77,10 @@ class FrequencyPacket56(btype.Struct):
 
 class Measurement:
     '''
-    Object encapsulating the results of an XtalX sensor measurement.  The
+    Object encapsulating the results of an XTI sensor measurement.  The
     following fields are defined:
 
-        sensor - Reference to the XtalX that generated the Measurement.
+        sensor - Reference to the XTI that generated the Measurement.
         ref_freq - Frequency of the sensor's reference crystal.
         pressure_edges - Number of pressure crystal ticks used to generate the
             Measurement.
@@ -199,14 +201,10 @@ class Measurement:
         return s
 
 
-class XtalXException(Exception):
-    pass
-
-
-class XtalX:
+class XTI:
     '''
     Given a USB device handle acquired via find() or find_one(), creates an
-    XtalX object that can be used to communicate with a sensor.
+    XTI object that can be used to communicate with a sensor.
     '''
     def __init__(self, usb_dev):
         self.usb_dev     = usb_dev
@@ -235,7 +233,7 @@ class XtalX:
             usb_dev.bus, '.'.join('%u' % n for n in usb_dev.port_numbers))
 
     def __str__(self):
-        return 'XtalX(%s)' % self.serial_num
+        return 'XTI(%s)' % self.serial_num
 
     def _set_configuration(self, bConfigurationValue):
         with self.lock:
@@ -316,7 +314,7 @@ class XtalX:
         Blocks the current thread until the asynchronous read thread completes.
         Typically this blocks indefinitely until some error occurs, however the
         read thread will also exit if someone sets the _halt_yield field to
-        True (see XtalX.halt_read()).
+        True (see XTI.halt_read()).
         '''
         self.thread.join()
 
@@ -327,29 +325,3 @@ class XtalX:
         '''
         self._halt_yield = True
         self.join_read()
-
-
-def find(**kwargs):
-    '''
-    Returns a list of USB device handles for all XtalX sensors.  **kwargs can
-    be any keyword argument accepted by usb.core.find(); typically you will
-    leave it empty.
-    '''
-    return list(usb.core.find(find_all=True, idVendor=0x0483, idProduct=0xA34E,
-                              product='XtalX', **kwargs))
-
-
-def find_one(**kwargs):
-    '''
-    Returns a single USB device handle for an XtalX sensor if only a single
-    sensor is attached.  If multiple sensors are found, an exception is raised.
-    **kwargs can be any keyword argument accepted by usb.core.find(); typically
-    you will leave it empty.
-    '''
-    usb_devs = find(**kwargs)
-    if len(usb_devs) > 1:
-        raise XtalXException('Multiple matching devices: %s' %
-                             ', '.join(ud.serial_number for ud in usb_devs))
-    if not usb_devs:
-        raise XtalXException('No matching devices.')
-    return usb_devs[0]

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-# Copyright (c) 2020-2021 by Phase Advanced Sensor Systems Corp.
+# Copyright (c) 2020-2023 by Phase Advanced Sensor Systems Corp.
 import argparse
 import time
+import math
 
-import xtalx
+import xtalx.p_sensor
 
 
 def print_measurement(x, temp_c, pressure_psi):
@@ -23,6 +24,10 @@ def print_measurement(x, temp_c, pressure_psi):
 def xtalx_cb(x, t, dt, temp_c, pressure_psi, csv_file):
     print_measurement(x, temp_c, pressure_psi)
     if csv_file:
+        if temp_c is None:
+            temp_c = math.nan
+        if pressure_psi is None:
+            pressure_psi = math.nan
         csv_file.write('%.6f,%.6f,%.2f,%.5f\n' % (t, dt, temp_c, pressure_psi))
         csv_file.flush()
 
@@ -54,24 +59,7 @@ def sample_continuous(x, csv_file):
 
 
 def main(args):
-    if args.serial_number is not None:
-        sensors = xtalx.find(serial_number=args.serial_number)
-        if not sensors:
-            print('No matching sensors.')
-            for s in xtalx.find():
-                print('    %s' % s.serial_number)
-            return
-    else:
-        sensors = xtalx.find()
-        if not sensors:
-            print('No sensors found.')
-            return
-    if len(sensors) != 1:
-        print('Matching sensors:')
-        for s in sensors:
-            print('    %s' % s.serial_number)
-        return
-    d = sensors[0]
+    d = xtalx.p_sensor.find_one_xti(serial_number=args.serial_number)
 
     if args.csv_file:
         csv_file = open(  # pylint: disable=R1732
@@ -91,7 +79,7 @@ def main(args):
     else:
         csv_file = None
 
-    x = xtalx.XtalX(d)
+    x = xtalx.p_sensor.make(d)
     if args.sample_period:
         sample_gated(x, csv_file, args.sample_period)
     else:

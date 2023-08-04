@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-# Copyright (c) 2020-2021 by Phase Advanced Sensor Systems Corp.
+# Copyright (c) 2020-2023 by Phase Advanced Sensor Systems Corp.
 import argparse
 import usb.util
 
-import xtalx
+import xtalx.p_sensor
 
 
 def main(_args):
-    for s in xtalx.find():
+    for s in xtalx.p_sensor.find_xti():
         print('******************')
         print('Sensor SN: %s' % s.serial_number)
         print(' git SHA1: %s' % usb.util.get_string(s, 6))
