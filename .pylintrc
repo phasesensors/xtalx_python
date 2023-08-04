@@ -15,5 +15,6 @@ disable=missing-module-docstring,
         too-many-statements,
         too-many-public-methods,
         import-outside-toplevel,
+        broad-exception-raised,
         superfluous-parens,
         consider-using-f-string
