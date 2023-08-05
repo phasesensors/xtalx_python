@@ -1,12 +1,14 @@
-# Copyright (c) 2021 by Phase Advanced Sensor Systems Corp.
+# Copyright (c) 2021-2023 by Phase Advanced Sensor Systems Corp.
 MODULE      := xtalx
-MODULE_VERS := 1.0.3
-MODULE_DEPS := \
+MODULE_VERS := 1.0.4
+MODULE_DEPS :=
 MODULES := \
-		setup.cfg \
-		setup.py \
-		xtalx/*.py \
-		xtalx/tools/*.py
+	xtalx/p_sensor/*.py \
+	xtalx/z_sensor/*.py \
+	xtalx/tools/math/*.py \
+	xtalx/tools/p_sensor/*.py \
+	xtalx/tools/usb/*.py \
+	xtalx/tools/z_sensor/*.py
 
 FLAKE_MODULES := xtalx
 LINT_MODULES  := xtalx
@@ -38,11 +40,11 @@ install: $(WHEEL_PATH) | uninstall
 
 .PHONY: uninstall
 uninstall:
-	python3 -m pip uninstall -y xtalx
+	python3 -m pip uninstall -y $(MODULE)
 
 .PHONY: packages
 packages: $(WHEEL_PATH)
 
 $(WHEEL_PATH): setup.py setup.cfg $(MODULES)
-	python3 setup.py sdist bdist_wheel
+	python3 setup.py --quiet sdist bdist_wheel
 	python3 -m twine check $@
