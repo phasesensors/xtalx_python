@@ -31,6 +31,7 @@ def print_info_tcsc_u5(tc2):
     if not tc2.ginfo.electronics_cal_date:
         print('No electrical calibration present.')
     else:
+        vdda = tc2.adc_to_v(tc2.ADC_MAX / 2)
         print('Electrical calibration:')
         print(' Calibration Date: %s' %
               date_str(tc2.ginfo.electronics_cal_date))
@@ -40,7 +41,10 @@ def print_info_tcsc_u5(tc2):
                                                 tc2.einfo.dac_to_v_coefs[1]))
         print('         ADC-to-V: %f + %f*x' % (tc2.einfo.adc_to_v_coefs[0],
                                                 tc2.einfo.adc_to_v_coefs[1]))
-        print('     Nominal VDDA: %.2f' % tc2.adc_to_v(tc2.ADC_MAX / 2))
+        print('     Nominal VDDA: %.2f' % vdda)
+
+        a_dac = tc2.dac_to_a(tc2.DAC_MAX)
+        print('               G0: %f' % (a_dac / vdda))
 
     print('-----------------------')
     if not tc2.ginfo.crystal_cal_date:
