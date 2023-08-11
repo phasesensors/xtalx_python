@@ -244,8 +244,9 @@ class PeakTracker:
         self.tc._synchronize()
 
         if lf and lf.RR >= CHIRP_MIN_RR and CHIRP_F0 <= lf.x0 <= CHIRP_F1:
-            self.tc.info('Chirp succeeded: x0 %s fwhm %s R**2 %.5f'
-                         % (lf.x0, lf.W*2, lf.RR))
+            strength = lf.A / (math.pi * lf.W)
+            self.tc.info('Chirp succeeded: x0 %s fwhm %s strength %.2f '
+                         'R**2 %.5f' % (lf.x0, lf.W*2, strength, lf.RR))
             self.hires_width    = max(abs(lf.W * 2), 12)
             self.hires_f_center = lf.x0
             self._start_hires_sweep()
