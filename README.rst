@@ -112,6 +112,16 @@ command-line output.  To execute it::
     ~% xtalx_z_gl_track_mode
 
 
+xtalx_z_cli_track_mode
+======================
+The xtalx package includes the xtalx_z_cli_track_mode binary that is similar
+to the GUI track mode tool but only prints log messages to the console and
+write measurements to the .csv files.  This allows it to be run on a headless
+system.  To execute it::
+
+    ~% xtalx_z_cli_track_mode
+
+
 Windows use
 ===========
 On Windows, the binaries are all launched via the command line just like on
