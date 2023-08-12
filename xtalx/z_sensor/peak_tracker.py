@@ -12,7 +12,7 @@ from xtalx.tools.math import Lorentzian
 
 CHIRP_F0     = 15000
 CHIRP_F1     = 35000
-CHIRP_A      = 2000
+CHIRP_A      = 0.25
 CHIRP_MS     = 105
 CHIRP_DT     = CHIRP_MS * 0.001 * 2 + 0.02
 CHIRP_MIN_RR = 0.2
@@ -122,7 +122,8 @@ class PeakTracker:
         Start chirping and refine the data as it comes in.
         '''
         self.tc.info('Chirping from %f to %f...' % (CHIRP_F0, CHIRP_F1))
-        self.tc.send_auto_chirp_cmd(CHIRP_F0, CHIRP_F1, CHIRP_A)
+        self.tc.send_auto_chirp_cmd(CHIRP_F0, CHIRP_F1,
+                                    round(self.tc.a_to_dac(CHIRP_A)))
         self._transition(State.CHIRP_WAIT_DATA)
         self.t_timeout = time.time() + CHIRP_DT
 
