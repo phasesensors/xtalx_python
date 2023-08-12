@@ -509,21 +509,7 @@ def parse_args(tc, rv):
                                              rv.df or 1))
         SEARCH_PARAMS_DICT[SEARCH_PARAMS[0].name] = SEARCH_PARAMS[0]
 
-    if not rv.amplitude:
-        amplitude = tc.cal_dac_amp()
-        if amplitude is None:
-            raise Exception("Calibration page doesn't include the DAC voltage "
-                            "under which the calibration was performed, must "
-                            "specify --amplitude manually.")
-    elif rv.amplitude.upper().endswith('V'):
-        volts = float(rv.amplitude[:-1])
-        amplitude = tc.a_to_dac(volts)
-        if amplitude is None:
-            raise Exception("Calibration page doesn't have required voltage-"
-                            "to-DAC information to use amplitudes in Volts.")
-        amplitude = round(amplitude)
-    else:
-        amplitude = int(rv.amplitude)
+    amplitude = tc.parse_amplitude(rv.amplitude)
 
     tc.info('Using amplitude of %u DAC codes.' % amplitude)
     volts = tc.dac_to_a(amplitude)

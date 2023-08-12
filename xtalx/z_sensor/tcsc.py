@@ -497,6 +497,26 @@ class TCSC(TinCan):
             return None
         return -dac * self.einfo.dac_to_v_coefs[1]
 
+    def parse_amplitude(self, amplitude):
+        if amplitude is None:
+            amplitude = self.cal_dac_amp()
+            if amplitude is None:
+                raise Exception("Calibration page doesn't include the DAC "
+                                "voltage under which the calibration was "
+                                "performed, must specify --amplitude manually.")
+            return amplitude
+
+        if amplitude.upper().endswith('V'):
+            volts = float(amplitude[:-1])
+            amplitude = self.a_to_dac(volts)
+            if amplitude is None:
+                raise Exception("Calibration page doesn't have required "
+                                "voltage-to-DAC information to use amplitudes "
+                                "in Volts.")
+            return round(amplitude)
+
+        return int(amplitude)
+
     def _read_samples(self):
         data    = self.usb_dev.read(self.SCOPE_EP, 768 * 1024, timeout=3000)
         hdr     = SampleHeader.unpack(data[:SampleHeader._STRUCT.size])
