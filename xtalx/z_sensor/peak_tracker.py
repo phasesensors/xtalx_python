@@ -1,5 +1,6 @@
 # Copyright (c) 2021-2023 by Phase Advanced Sensor Systems, Inc.
 # All rights reserved.
+import threading
 import time
 import math
 import enum
@@ -65,6 +66,8 @@ class PeakTracker:
         self.sweep_time     = sweep_time
         self.settle_ms      = settle_ms
         self.delegate       = delegate
+        self.thread         = None
+        self.thread_cond    = threading.Condition()
 
         self.t_timeout      = None
         self.hires_f_center = None
@@ -280,3 +283,23 @@ class PeakTracker:
 
         # Poll continuously.
         return 0
+
+    def start_threaded(self):
+        with self.thread_cond:
+            assert self.thread is None
+            self.thread = threading.Thread(target=self._poll_threaded)
+            self.thread.start()
+
+    def stop_threaded(self):
+        with self.thread_cond:
+            t, self.thread = self.thread, None
+            self.thread_cond.notify()
+        t.join()
+
+    def _poll_threaded(self):
+        with self.thread_cond:
+            if self.thread:
+                self._start_full_search()
+                while self.thread:
+                    dt = self.poll()
+                    self.thread_cond.wait(timeout=dt)
