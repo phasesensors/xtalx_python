@@ -4,6 +4,7 @@ import xtalx.tools.usb
 
 from .tcsc_u5 import TCSC_U5
 from .peak_tracker import PeakTracker
+from .predicate_queue import PredicateQueue
 from .sweeper import Sweeper
 
 
@@ -29,5 +30,6 @@ __all__ = ['find',
            'find_one',
            'make',
            'PeakTracker',
+           'PredicateQueue',
            'Sweeper',
            ]
