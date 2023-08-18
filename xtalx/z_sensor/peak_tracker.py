@@ -1,6 +1,5 @@
 # Copyright (c) 2021-2023 by Phase Advanced Sensor Systems, Inc.
 # All rights reserved.
-import threading
 import time
 import math
 import enum
@@ -54,8 +53,6 @@ class Delegate:
 class PeakTracker:
     def __init__(self, tc, amplitude, f0, f1, search_df, nfreqs, search_time,
                  sweep_time, settle_ms=2, delegate=Delegate()):
-
-        self.sleep_cond     = threading.Condition()
         self.tc             = tc
         self.amplitude      = amplitude
         self.f0             = f0
