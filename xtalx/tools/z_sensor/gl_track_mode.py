@@ -10,27 +10,13 @@ from enum import Enum
 import glotlib
 
 import xtalx.z_sensor
-import xtalx.z_sensor.peak_tracker
+from xtalx.z_sensor.peak_tracker import Delegate
+
+from . import z_common
 
 
 def interp(v0, vN, N, t):
     return (vN*t + v0*(N-t)) / N
-
-
-class SearchParams:
-    def __init__(self, name, f0, f1, df):
-        self.name = name
-        self.f0   = f0
-        self.f1   = f1
-        self.df   = df
-
-
-SEARCH_PARAMS = [
-    SearchParams('Fluid',  20000, 35000, 50),
-    SearchParams('Gas',    29000, 33000, 5),
-    SearchParams('Vacuum', 32700, 32900, 1),
-]
-SEARCH_PARAMS_DICT = {sp.name : sp for sp in SEARCH_PARAMS}
 
 
 HISTORY_PLOTS = 5
@@ -55,29 +41,13 @@ class ViewMode(Enum):
     SMALL   = 2
 
 
-class TrackerArgs:
-    def __init__(self, amplitude, f0, f1, df, nfreqs, search_time_secs,
-                 sweep_time_secs, settle_ms, fit_file, dump_file):
-        self.amplitude        = amplitude
-        self.f0               = f0
-        self.f1               = f1
-        self.f_min            = min(f0, f1)
-        self.f_max            = max(f0, f1)
-        self.df               = df
-        self.nfreqs           = nfreqs
-        self.search_time_secs = search_time_secs
-        self.sweep_time_secs  = sweep_time_secs
-        self.settle_ms        = settle_ms
-        self.fit_file         = fit_file
-        self.dump_file        = dump_file
-
-
-class TrackerWindow(glotlib.Window, xtalx.z_sensor.peak_tracker.Delegate):
-    def __init__(self, tc, tracker_args, name):
+class TrackerWindow(glotlib.Window, Delegate):
+    def __init__(self, tc, z_args, z_logger, name):
         super().__init__(900, 700, msaa=4, name=tc.serial_num or '')
 
         self.tc               = tc
-        self.args             = tracker_args
+        self.z_args           = z_args
+        self.z_logger         = z_logger
         self.data_gen         = -1
         self.plot_gen         = -1
         self.data_lock        = threading.Lock()
@@ -107,11 +77,11 @@ class TrackerWindow(glotlib.Window, xtalx.z_sensor.peak_tracker.Delegate):
         self.sweep_prefix     = ''
         self.end_sweep_time   = None
 
-        volts = tc.dac_to_a(tracker_args.amplitude)
+        volts = tc.dac_to_a(z_args.amplitude)
         if volts:
             self.drive_str = 'Drive: %.2fV' % volts
         else:
-            self.drive_str = 'Drive: %u DAC' % tracker_args.amplitude
+            self.drive_str = 'Drive: %u DAC' % z_args.amplitude
 
         self.d_plot = self.add_plot(
             511, limits=(-0.1, -0.05, 50, 1.05), max_v_ticks=4)
@@ -130,7 +100,7 @@ class TrackerWindow(glotlib.Window, xtalx.z_sensor.peak_tracker.Delegate):
 
         self.fc_plot = self.add_plot(
             (5, 8, (25, 27)),
-            limits=(-0.1, self.args.f_min, 50, self.args.f_max),
+            limits=(-0.1, z_args.f_min, 50, z_args.f_max),
             max_v_ticks=4, sharex=self.d_plot)
         self.fc_lines = self.fc_plot.add_lines([], width=LINE_WIDTH)
 
@@ -140,18 +110,18 @@ class TrackerWindow(glotlib.Window, xtalx.z_sensor.peak_tracker.Delegate):
         self.w_lines = self.w_plot.add_lines([], width=LINE_WIDTH)
 
         self.zx_plot = self.add_plot(
-            (5, 4, 17), limits=(self.args.f_min, -1, self.args.f_max, 1),
+            (5, 4, 17), limits=(z_args.f_min, -1, z_args.f_max, 1),
             max_h_ticks=4, max_v_ticks=4)
         self.zx_lines = self._make_lines(self.zx_plot)
 
         self.phi_plot = self.add_plot(
             (5, 4, 18),
-            limits=(self.args.f_min, -math.pi, self.args.f_max, math.pi),
+            limits=(z_args.f_min, -math.pi, z_args.f_max, math.pi),
             max_h_ticks=4, max_v_ticks=4, sharex=self.zx_plot)
         self.phi_lines = self._make_lines(self.phi_plot)
 
         self.rzx_plot = self.add_plot(
-            (5, 4, 19), limits=(self.args.f_min, -1, self.args.f_max, 1),
+            (5, 4, 19), limits=(z_args.f_min, -1, z_args.f_max, 1),
             max_h_ticks=4, max_v_ticks=4, sharex=self.zx_plot)
         self.rzx_lines = self._make_lines(self.rzx_plot)
         self.rzx_lines[0].point_width = 3
@@ -426,112 +396,25 @@ class TrackerWindow(glotlib.Window, xtalx.z_sensor.peak_tracker.Delegate):
                 self.sweep_prefix = 'Searching %s' % freq_str
             self.mark_dirty()
 
-    def sweep_callback(self, tc, pt, t0_ns, duration_ms, points, fw_fit, hires,
+    def sweep_callback(self, tc, pt, t0_ns, _duration_ms, points, fw_fit, hires,
                        temp_freq):
-        if self.args.dump_file:
-            for p in points:
-                self.args.dump_file.write('%s,%u,%s,%.3f,%s,%s,%s,%u\n' %
-                                          (pt.sweep, t0_ns, p.f,
-                                           p.nbufs / 1000., p.z.real, p.z.imag,
-                                           p.RR[1], pt.amplitude))
-            self.args.dump_file.flush()
-
-        tag = 'H' if hires else 'S'
-        f0  = points[0].f
-        f1  = points[-1].f
-        if fw_fit is not None:
-            T = fw_fit.temp_c
-            D = fw_fit.density_g_per_ml
-            V = fw_fit.viscosity_cp
-            tc.log(tag, 'i %u f0 %f f1 %f x0 %.3f w*2 %.3f RR %.6f temp_hz %s '
-                   ' T %s D %s V %s' %
-                   (pt.sweep, f0, f1, fw_fit.peak_hz, fw_fit.peak_fwhm,
-                    fw_fit.RR, temp_freq, T, D, V))
-        else:
-            T, D, V = None, None, None
-            tc.log(tag, 'i %u f0 %f f1 %f T %s D %s V %s' %
-                   (pt.sweep, f0, f1, T, D, V))
-            T = temp_freq
-
-        if self.args.fit_file:
-            self.args.fit_file.write(
-                '%u,%s,%u,%.3f,%.3f,%.6f,%.6f,%.6f,%.6f,%u\n' %
-                (t0_ns, pt.sweep,
-                 1 if hires else 0,
-                 fw_fit.peak_hz if fw_fit else math.nan,
-                 fw_fit.peak_fwhm if fw_fit else math.nan,
-                 fw_fit.RR if fw_fit is not None else math.nan,
-                 T if T is not None else math.nan,
-                 D if D is not None else math.nan,
-                 V if V is not None else math.nan,
-                 pt.amplitude))
-            self.args.fit_file.flush()
-
+        T, D, V = self.z_logger.log_sweep(tc, pt, t0_ns, points, fw_fit, hires,
+                                          temp_freq)
         self.data_callback(pt.sweep, fw_fit, points, T, D, V, hires)
-
-
-def parse_args(tc, rv):
-    if rv.freq_0 is not None or rv.freq_1 is not None:
-        if rv.freq_0 is None or rv.freq_1 is None:
-            raise Exception('Most specify neither or both of --freq-0, '
-                            '--freq-1')
-        SEARCH_PARAMS.insert(0, SearchParams('%s - %s' % (rv.freq_0, rv.freq_1),
-                                             float(rv.freq_0), float(rv.freq_1),
-                                             rv.df or 1))
-        SEARCH_PARAMS_DICT[SEARCH_PARAMS[0].name] = SEARCH_PARAMS[0]
-
-    amplitude = tc.parse_amplitude(rv.amplitude)
-
-    tc.info('Using amplitude of %u DAC codes.' % amplitude)
-    volts = tc.dac_to_a(amplitude)
-    if volts is not None:
-        tc.info('Using amplitude of %f V.' % volts)
-
-    if not 0 <= amplitude <= 2000:
-        raise Exception('Amplitude not in range 0 to 2000.')
-
-    if rv.dump_file:
-        dump_file = open(  # pylint: disable=R1732
-                rv.dump_file, 'a', encoding='utf8')
-        dump_file.write('sweep,time_ns,f,dt,zx_real,zx_imag,RR,amplitude\n')
-        dump_file.flush()
-    else:
-        dump_file = None
-
-    if rv.fit_file:
-        fit_file = open(  # pylint: disable=R1732
-                rv.fit_file, 'a', encoding='utf8')
-        fit_file.write('time_ns,sweep,hires,peak_hz,peak_fwhm,RR,temp_c,'
-                       'density_g_per_ml,viscosity_cp,amplitude\n')
-        fit_file.flush()
-    else:
-        fit_file = None
-
-    f0 = SEARCH_PARAMS[0].f0
-    f1 = SEARCH_PARAMS[0].f1
-    df = SEARCH_PARAMS[0].df
-
-    return TrackerArgs(amplitude, f0, f1, df, rv.nfreqs, rv.search_time_secs,
-                       rv.sweep_time_secs, rv.settle_ms, fit_file, dump_file)
 
 
 def main(rv):
     track_admittance = not rv.track_impedance
 
-    dev = xtalx.z_sensor.find_one(serial_number=rv.sensor)
-    tc  = xtalx.z_sensor.make(dev, verbose=rv.verbose, yield_Y=track_admittance)
-
-    if track_admittance:
-        tc.info('Tracking admittance.')
-    else:
-        tc.info('Tracking impedance.')
-
-    ta = parse_args(tc, rv)
-    tw = TrackerWindow(tc, ta, tc.serial_num)
-    pt = xtalx.z_sensor.PeakTracker(
-          tc, ta.amplitude, ta.f0, ta.f1, ta.df, ta.nfreqs,
-          ta.search_time_secs, ta.sweep_time_secs,
-          settle_ms=ta.settle_ms, delegate=tw)
+    dev    = xtalx.z_sensor.find_one(serial_number=rv.sensor)
+    tc     = xtalx.z_sensor.make(dev, verbose=rv.verbose,
+                                 yield_Y=track_admittance)
+    za, zl = z_common.parse_args(tc, rv)
+    tw     = TrackerWindow(tc, za, zl, tc.serial_num)
+    pt     = xtalx.z_sensor.PeakTracker(
+              tc, za.amplitude, za.f0, za.f1, za.df, za.nfreqs,
+              za.search_time_secs, za.sweep_time_secs,
+              settle_ms=za.settle_ms, delegate=tw)
     pt.start_threaded()
 
     try:
@@ -544,19 +427,7 @@ def main(rv):
 
 def _main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--amplitude', '-a')
-    parser.add_argument('--freq-0', '-0')
-    parser.add_argument('--freq-1', '-1')
-    parser.add_argument('--df', type=float)
-    parser.add_argument('--nfreqs', '-n', type=int, default=100)
-    parser.add_argument('--verbose', '-v', action='store_true')
-    parser.add_argument('--search-time-secs', type=float, default=30)
-    parser.add_argument('--sweep-time-secs', type=float, default=30)
-    parser.add_argument('--settle-ms', type=int, default=5000)
-    parser.add_argument('--dump-file', '-d')
-    parser.add_argument('--fit-file', '-f')
-    parser.add_argument('--sensor', '-s')
-    parser.add_argument('--track-impedance', action='store_true')
+    z_common.add_arguments(parser)
     rv = parser.parse_args()
     main(rv)
 
