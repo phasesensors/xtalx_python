@@ -248,15 +248,16 @@ class PeakTracker:
 
         if lf and lf.RR >= CHIRP_MIN_RR and CHIRP_F0 <= lf.x0 <= CHIRP_F1:
             strength = lf.A / (math.pi * lf.W)
-            self.tc.info('Chirp succeeded: x0 %s fwhm %s strength %.2f '
-                         'R**2 %.5f' % (lf.x0, lf.W*2, strength, lf.RR))
+            self.tc.info('Chirp succeeded: peak_hz %s peak_fwhm %s '
+                         'strength %.2f RR %.5f' %
+                         (lf.x0, lf.W*2, strength, lf.RR))
             self.hires_width    = max(abs(lf.W * 2), 12)
             self.hires_f_center = lf.x0
             self._start_hires_sweep()
             return
 
         if lf:
-            self.tc.info('Chirp failed with R**2 = %.5f' % lf.RR)
+            self.tc.info('Chirp failed with RR = %.5f' % lf.RR)
         else:
             self.tc.info('Chirp failed with no fit.')
         self._start_peak_search_defaults()
