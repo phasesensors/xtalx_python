@@ -258,11 +258,11 @@ class PeakTracker:
             self.tc.info('Chirp failed with no fit.')
         self._start_peak_search_defaults()
 
-    def start(self):
+    def start_async(self):
         assert self.state == State.IDLE
         self._start_full_search()
 
-    def stop(self):
+    def stop_async(self):
         assert self.state != State.IDLE
         self.t_timeout = None
         self._transition(State.IDLE)

@@ -490,7 +490,7 @@ class TrackerWindow(glotlib.Window, xtalx.z_sensor.peak_tracker.Delegate):
                 self.args.sweep_time_secs, settle_ms=self.args.settle_ms,
                 delegate=self)
 
-        self.peak_tracker.start()
+        self.peak_tracker.start_async()
         with self.poll_cond:
             while self.running:
                 dt = self.peak_tracker.poll()
