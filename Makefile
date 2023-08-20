@@ -36,11 +36,11 @@ lint:
 
 .PHONY: install
 install: $(WHEEL_PATH) | uninstall
-	python3 -m pip install $(WHEEL_PATH)
+	sudo python3 -m pip install $(WHEEL_PATH)
 
 .PHONY: uninstall
 uninstall:
-	python3 -m pip uninstall -y $(MODULE)
+	sudo python3 -m pip uninstall -y $(MODULE)
 
 .PHONY: packages
 packages: $(WHEEL_PATH)
