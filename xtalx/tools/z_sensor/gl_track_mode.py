@@ -81,9 +81,6 @@ class TrackerWindow(glotlib.Window, xtalx.z_sensor.peak_tracker.Delegate):
         self.data_gen         = -1
         self.plot_gen         = -1
         self.data_lock        = threading.Lock()
-        self.poll_cond        = threading.Condition()
-        self.poll_thread      = None
-        self.running          = False
         self.sweeps           = [[] for _ in range(HISTORY_PLOTS)]
         self.f_centers        = []
         self.widths           = []
@@ -101,7 +98,6 @@ class TrackerWindow(glotlib.Window, xtalx.z_sensor.peak_tracker.Delegate):
         self.chirp_width      = None
         self.chirp_strength   = None
         self.sweep_snap       = False
-        self.peak_tracker     = None
         self.track_mode       = None
         self.view_mode        = ViewMode.LARGE
         self.large_w          = self.w_w
@@ -189,17 +185,6 @@ class TrackerWindow(glotlib.Window, xtalx.z_sensor.peak_tracker.Delegate):
                  for i in range(HISTORY_PLOTS)]
         lines.reverse()
         return lines
-
-    def start(self):
-        self.running = True
-        self.poll_thread = threading.Thread(target=self.poll_loop)
-        self.poll_thread.start()
-
-    def stop(self):
-        with self.poll_cond:
-            self.running = False
-            self.poll_cond.notify()
-        self.poll_thread.join()
 
     def update_periodic(self, _t):
         self.mark_dirty()
@@ -484,19 +469,6 @@ class TrackerWindow(glotlib.Window, xtalx.z_sensor.peak_tracker.Delegate):
 
         self.data_callback(pt.sweep, fw_fit, points, T, D, V, hires)
 
-    def poll_loop(self):
-        self.peak_tracker = xtalx.z_sensor.PeakTracker(
-                self.tc, self.args.amplitude, self.args.f0, self.args.f1,
-                self.args.df, self.args.nfreqs, self.args.search_time_secs,
-                self.args.sweep_time_secs, settle_ms=self.args.settle_ms,
-                delegate=self)
-
-        self.peak_tracker.start_async()
-        with self.poll_cond:
-            while self.running:
-                dt = self.peak_tracker.poll()
-                self.poll_cond.wait(timeout=dt)
-
 
 def parse_args(tc, rv):
     if rv.freq_0 is not None or rv.freq_1 is not None:
@@ -554,17 +526,20 @@ def main(rv):
     else:
         tc.info('Tracking impedance.')
 
-    tw = TrackerWindow(tc, parse_args(tc, rv), tc.serial_num)
-    tw.start()
+    ta = parse_args(tc, rv)
+    tw = TrackerWindow(tc, ta, tc.serial_num)
+    pt = xtalx.z_sensor.PeakTracker(
+          tc, ta.amplitude, ta.f0, ta.f1, ta.df, ta.nfreqs,
+          ta.search_time_secs, ta.sweep_time_secs,
+          settle_ms=ta.settle_ms, delegate=tw)
+    pt.start_threaded()
 
     try:
         glotlib.interact()
     except KeyboardInterrupt:
         print()
     finally:
-        tc.info('Terminating USB poll thread...')
-        tw.stop()
-        tc.info('Done.')
+        pt.stop_threaded()
 
 
 def _main():
