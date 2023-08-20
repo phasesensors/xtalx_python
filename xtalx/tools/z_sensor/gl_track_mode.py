@@ -109,6 +109,7 @@ class TrackerWindow(glotlib.Window, xtalx.z_sensor.peak_tracker.Delegate):
         self.small_w          = round(self.w_w * 0.75)
         self.small_h          = round(self.w_h * 0.25)
         self.sweep_prefix     = ''
+        self.end_sweep_time   = None
 
         volts = tc.dac_to_a(tracker_args.amplitude)
         if volts:
@@ -264,9 +265,8 @@ class TrackerWindow(glotlib.Window, xtalx.z_sensor.peak_tracker.Delegate):
         return False
 
     def update_sweep_geometry(self):
-        end_sweep_time = self.peak_tracker.t_timeout
-        if end_sweep_time is not None:
-            dt = max(end_sweep_time - time.time(), 0)
+        if self.end_sweep_time is not None:
+            dt = max(self.end_sweep_time - time.time(), 0)
             updated = self.set_status_text('%s: %.0f seconds' %
                                            (self.sweep_prefix, dt))
         else:
@@ -430,10 +430,11 @@ class TrackerWindow(glotlib.Window, xtalx.z_sensor.peak_tracker.Delegate):
 
             self.mark_dirty()
 
-    def sweep_started_callback(self, _tc, _pt, _duration_ms, hires, f0, f1):
+    def sweep_started_callback(self, _tc, pt, _duration_ms, hires, f0, f1):
         with self.data_lock:
-            self.track_mode = TrackMode.SWEEP
-            freq_str          = '[%.2f - %.2f]' % (f0, f1)
+            self.track_mode     = TrackMode.SWEEP
+            self.end_sweep_time = pt.t_timeout
+            freq_str            = '[%.2f - %.2f]' % (f0, f1)
             if hires:
                 self.sweep_prefix = 'Sweeping Hires %s' % freq_str
             else:
