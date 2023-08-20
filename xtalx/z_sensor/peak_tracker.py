@@ -72,6 +72,7 @@ class PeakTracker:
         self.min_rr         = None
         self.min_w          = None
         self.sensor_ms      = None
+        self.sweep          = 0
         self.sweep_t0_ns    = None
         self.state          = State.IDLE
         self.chirp_space    = np.linspace(CHIRP_F0, CHIRP_F1,
@@ -196,6 +197,7 @@ class PeakTracker:
         self.delegate.sweep_callback(self.tc, self, self.sweep_t0_ns,
                                      self.sensor_ms + dt_ms, points, fw_fit,
                                      hires, temp_freq)
+        self.sweep += 1
 
         if self.state == State.IDLE:
             return

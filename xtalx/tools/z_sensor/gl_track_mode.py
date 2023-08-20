@@ -102,7 +102,6 @@ class TrackerWindow(glotlib.Window, xtalx.z_sensor.peak_tracker.Delegate):
         self.chirp_strength   = None
         self.sweep_snap       = False
         self.peak_tracker     = None
-        self.sweep            = 0
         self.track_mode       = None
         self.view_mode        = ViewMode.LARGE
         self.large_w          = self.w_w
@@ -446,7 +445,7 @@ class TrackerWindow(glotlib.Window, xtalx.z_sensor.peak_tracker.Delegate):
         if self.args.dump_file:
             for p in points:
                 self.args.dump_file.write('%s,%u,%s,%.3f,%s,%s,%s,%u\n' %
-                                          (self.sweep, t0_ns, p.f,
+                                          (pt.sweep, t0_ns, p.f,
                                            p.nbufs / 1000., p.z.real, p.z.imag,
                                            p.RR[1], pt.amplitude))
             self.args.dump_file.flush()
@@ -460,18 +459,18 @@ class TrackerWindow(glotlib.Window, xtalx.z_sensor.peak_tracker.Delegate):
             V = fw_fit.viscosity_cp
             tc.log(tag, 'i %u f0 %f f1 %f x0 %.3f w*2 %.3f RR %.6f temp_hz %s '
                    ' T %s D %s V %s' %
-                   (self.sweep, f0, f1, fw_fit.peak_hz, fw_fit.peak_fwhm,
+                   (pt.sweep, f0, f1, fw_fit.peak_hz, fw_fit.peak_fwhm,
                     fw_fit.RR, temp_freq, T, D, V))
         else:
             T, D, V = None, None, None
             tc.log(tag, 'i %u f0 %f f1 %f T %s D %s V %s' %
-                   (self.sweep, f0, f1, T, D, V))
+                   (pt.sweep, f0, f1, T, D, V))
             T = temp_freq
 
         if self.args.fit_file:
             self.args.fit_file.write(
                 '%u,%s,%u,%.3f,%.3f,%.6f,%.6f,%.6f,%.6f,%u\n' %
-                (t0_ns, self.sweep,
+                (t0_ns, pt.sweep,
                  1 if hires else 0,
                  fw_fit.peak_hz if fw_fit else math.nan,
                  fw_fit.peak_fwhm if fw_fit else math.nan,
@@ -482,8 +481,7 @@ class TrackerWindow(glotlib.Window, xtalx.z_sensor.peak_tracker.Delegate):
                  pt.amplitude))
             self.args.fit_file.flush()
 
-        self.data_callback(self.sweep, fw_fit, points, T, D, V, hires)
-        self.sweep += 1
+        self.data_callback(pt.sweep, fw_fit, points, T, D, V, hires)
 
     def poll_loop(self):
         self.peak_tracker = xtalx.z_sensor.PeakTracker(
