@@ -10,27 +10,13 @@ from enum import Enum
 import glotlib
 
 import xtalx.z_sensor
-import xtalx.z_sensor.peak_tracker
+from xtalx.z_sensor.peak_tracker import Delegate
+
+from . import z_common
 
 
 def interp(v0, vN, N, t):
     return (vN*t + v0*(N-t)) / N
-
-
-class SearchParams:
-    def __init__(self, name, f0, f1, df):
-        self.name = name
-        self.f0   = f0
-        self.f1   = f1
-        self.df   = df
-
-
-SEARCH_PARAMS = [
-    SearchParams('Fluid',  20000, 35000, 50),
-    SearchParams('Gas',    29000, 33000, 5),
-    SearchParams('Vacuum', 32700, 32900, 1),
-]
-SEARCH_PARAMS_DICT = {sp.name : sp for sp in SEARCH_PARAMS}
 
 
 HISTORY_PLOTS = 5
@@ -55,26 +41,16 @@ class ViewMode(Enum):
     SMALL   = 2
 
 
-class TrackerWindow(glotlib.Window, xtalx.z_sensor.peak_tracker.Delegate):
-    def __init__(self, tc, amplitude, f_min, f_max, nfreqs, search_time_secs,
-                 sweep_time_secs, settle_ms, name,
-                 use_temp_hz, fit_file, dump_file):
+class TrackerWindow(glotlib.Window, Delegate):
+    def __init__(self, tc, z_args, z_logger, name):
         super().__init__(900, 700, msaa=4, name=tc.serial_num or '')
 
         self.tc               = tc
-        self.amplitude        = amplitude
-        self.nfreqs           = nfreqs
-        self.search_time_secs = search_time_secs
-        self.sweep_time_secs  = sweep_time_secs
-        self.settle_ms        = settle_ms
-        self.fit_file         = fit_file
-        self.dump_file        = dump_file
+        self.z_args           = z_args
+        self.z_logger         = z_logger
         self.data_gen         = -1
         self.plot_gen         = -1
         self.data_lock        = threading.Lock()
-        self.poll_cond        = threading.Condition()
-        self.poll_thread      = None
-        self.running          = False
         self.sweeps           = [[] for _ in range(HISTORY_PLOTS)]
         self.f_centers        = []
         self.widths           = []
@@ -92,8 +68,6 @@ class TrackerWindow(glotlib.Window, xtalx.z_sensor.peak_tracker.Delegate):
         self.chirp_width      = None
         self.chirp_strength   = None
         self.sweep_snap       = False
-        self.peak_tracker     = None
-        self.sweep            = 0
         self.track_mode       = None
         self.view_mode        = ViewMode.LARGE
         self.large_w          = self.w_w
@@ -101,12 +75,13 @@ class TrackerWindow(glotlib.Window, xtalx.z_sensor.peak_tracker.Delegate):
         self.small_w          = round(self.w_w * 0.75)
         self.small_h          = round(self.w_h * 0.25)
         self.sweep_prefix     = ''
+        self.end_sweep_time   = None
 
-        volts = tc.dac_to_a(amplitude)
+        volts = tc.dac_to_a(z_args.amplitude)
         if volts:
             self.drive_str = 'Drive: %.2fV' % volts
         else:
-            self.drive_str = 'Drive: %u DAC' % amplitude
+            self.drive_str = 'Drive: %u DAC' % z_args.amplitude
 
         self.d_plot = self.add_plot(
             511, limits=(-0.1, -0.05, 50, 1.05), max_v_ticks=4)
@@ -117,15 +92,16 @@ class TrackerWindow(glotlib.Window, xtalx.z_sensor.peak_tracker.Delegate):
             sharex=self.d_plot)
         self.v_lines = self.v_plot.add_lines([], width=LINE_WIDTH)
 
-        t_lim = (262000, 262600) if use_temp_hz else (-40, 200)
+        t_lim = (262000, 262600) if tc.ginfo.have_temp_cal() else (-40, 200)
         self.t_plot = self.add_plot(
             513, limits=(-0.1, t_lim[0], 50, t_lim[1]), max_v_ticks=4,
             sharex=self.d_plot)
         self.t_lines = self.t_plot.add_lines([], width=LINE_WIDTH)
 
         self.fc_plot = self.add_plot(
-            (5, 8, (25, 27)), limits=(-0.1, f_min, 50, f_max), max_v_ticks=4,
-            sharex=self.d_plot)
+            (5, 8, (25, 27)),
+            limits=(-0.1, z_args.f_min, 50, z_args.f_max),
+            max_v_ticks=4, sharex=self.d_plot)
         self.fc_lines = self.fc_plot.add_lines([], width=LINE_WIDTH)
 
         self.w_plot = self.add_plot(
@@ -134,18 +110,19 @@ class TrackerWindow(glotlib.Window, xtalx.z_sensor.peak_tracker.Delegate):
         self.w_lines = self.w_plot.add_lines([], width=LINE_WIDTH)
 
         self.zx_plot = self.add_plot(
-            (5, 4, 17), limits=(f_min, -1, f_max, 1), max_h_ticks=4,
-            max_v_ticks=4)
+            (5, 4, 17), limits=(z_args.f_min, -1, z_args.f_max, 1),
+            max_h_ticks=4, max_v_ticks=4)
         self.zx_lines = self._make_lines(self.zx_plot)
 
         self.phi_plot = self.add_plot(
-            (5, 4, 18), limits=(f_min, -math.pi, f_max, math.pi),
+            (5, 4, 18),
+            limits=(z_args.f_min, -math.pi, z_args.f_max, math.pi),
             max_h_ticks=4, max_v_ticks=4, sharex=self.zx_plot)
         self.phi_lines = self._make_lines(self.phi_plot)
 
         self.rzx_plot = self.add_plot(
-            (5, 4, 19), limits=(f_min, -1, f_max, 1), max_h_ticks=4,
-            max_v_ticks=4, sharex=self.zx_plot)
+            (5, 4, 19), limits=(z_args.f_min, -1, z_args.f_max, 1),
+            max_h_ticks=4, max_v_ticks=4, sharex=self.zx_plot)
         self.rzx_lines = self._make_lines(self.rzx_plot)
         self.rzx_lines[0].point_width = 3
 
@@ -178,17 +155,6 @@ class TrackerWindow(glotlib.Window, xtalx.z_sensor.peak_tracker.Delegate):
                  for i in range(HISTORY_PLOTS)]
         lines.reverse()
         return lines
-
-    def start(self):
-        self.running = True
-        self.poll_thread = threading.Thread(target=self.poll_loop)
-        self.poll_thread.start()
-
-    def stop(self):
-        with self.poll_cond:
-            self.running = False
-            self.poll_cond.notify()
-        self.poll_thread.join()
 
     def update_periodic(self, _t):
         self.mark_dirty()
@@ -254,9 +220,8 @@ class TrackerWindow(glotlib.Window, xtalx.z_sensor.peak_tracker.Delegate):
         return False
 
     def update_sweep_geometry(self):
-        end_sweep_time = self.peak_tracker.t_timeout
-        if end_sweep_time is not None:
-            dt = max(end_sweep_time - time.time(), 0)
+        if self.end_sweep_time is not None:
+            dt = max(self.end_sweep_time - time.time(), 0)
             updated = self.set_status_text('%s: %.0f seconds' %
                                            (self.sweep_prefix, dt))
         else:
@@ -420,168 +385,49 @@ class TrackerWindow(glotlib.Window, xtalx.z_sensor.peak_tracker.Delegate):
 
             self.mark_dirty()
 
-    def sweep_started_callback(self, _tc, _pt, _duration_ms, hires, f0, f1):
+    def sweep_started_callback(self, _tc, pt, _duration_ms, hires, f0, f1):
         with self.data_lock:
-            self.track_mode = TrackMode.SWEEP
-            freq_str          = '[%.2f - %.2f]' % (f0, f1)
+            self.track_mode     = TrackMode.SWEEP
+            self.end_sweep_time = pt.t_timeout
+            freq_str            = '[%.2f - %.2f]' % (f0, f1)
             if hires:
                 self.sweep_prefix = 'Sweeping Hires %s' % freq_str
             else:
                 self.sweep_prefix = 'Searching %s' % freq_str
             self.mark_dirty()
 
-    def sweep_callback(self, tc, pt, t0_ns, duration_ms, points, fw_fit, hires,
+    def sweep_callback(self, tc, pt, t0_ns, _duration_ms, points, fw_fit, hires,
                        temp_freq):
-        if self.dump_file:
-            for p in points:
-                self.dump_file.write('%s,%u,%s,%.3f,%s,%s,%s,%u\n' %
-                                     (self.sweep, t0_ns, p.f, p.nbufs / 1000.,
-                                      p.z.real, p.z.imag, p.RR[1],
-                                      pt.amplitude))
-            self.dump_file.flush()
-
-        tag = 'H' if hires else 'S'
-        f0  = points[0].f
-        f1  = points[-1].f
-        if fw_fit is not None:
-            T = fw_fit.temp_c
-            D = fw_fit.density_g_per_ml
-            V = fw_fit.viscosity_cp
-            tc.log(tag, 'i %u f0 %f f1 %f x0 %.3f w*2 %.3f RR %.6f temp_hz %s '
-                   ' T %s D %s V %s' %
-                   (self.sweep, f0, f1, fw_fit.peak_hz, fw_fit.peak_fwhm,
-                    fw_fit.RR, temp_freq, T, D, V))
-        else:
-            T, D, V = None, None, None
-            tc.log(tag, 'i %u f0 %f f1 %f T %s D %s V %s' %
-                   (self.sweep, f0, f1, T, D, V))
-            T = temp_freq
-
-        if self.fit_file:
-            self.fit_file.write(
-                '%u,%s,%u,%.3f,%.3f,%.6f,%.6f,%.6f,%.6f,%u\n' %
-                (t0_ns, self.sweep,
-                 1 if hires else 0,
-                 fw_fit.peak_hz if fw_fit else math.nan,
-                 fw_fit.peak_fwhm if fw_fit else math.nan,
-                 fw_fit.RR if fw_fit is not None else math.nan,
-                 T if T is not None else math.nan,
-                 D if D is not None else math.nan,
-                 V if V is not None else math.nan,
-                 pt.amplitude))
-            self.fit_file.flush()
-
-        self.data_callback(self.sweep, fw_fit, points, T, D, V, hires)
-        self.sweep += 1
-
-    def poll_loop(self):
-        sp = SEARCH_PARAMS[0]
-        self.peak_tracker = xtalx.z_sensor.PeakTracker(
-                self.tc, self.amplitude, sp.f0, sp.f1, sp.df, self.nfreqs,
-                self.search_time_secs, self.sweep_time_secs,
-                settle_ms=self.settle_ms, delegate=self)
-
-        self.peak_tracker.start()
-        with self.poll_cond:
-            while self.running:
-                dt = self.peak_tracker.poll()
-                self.poll_cond.wait(timeout=dt)
+        T, D, V = self.z_logger.log_sweep(tc, pt, t0_ns, points, fw_fit, hires,
+                                          temp_freq)
+        self.data_callback(pt.sweep, fw_fit, points, T, D, V, hires)
 
 
 def main(rv):
-    if rv.freq_0 is not None or rv.freq_1 is not None:
-        if rv.freq_0 is None or rv.freq_1 is None:
-            raise Exception('Most specify neither or both of --freq-0, '
-                            '--freq-1')
-        SEARCH_PARAMS.insert(0, SearchParams('%s - %s' % (rv.freq_0, rv.freq_1),
-                                             float(rv.freq_0), float(rv.freq_1),
-                                             rv.df or 1))
-        SEARCH_PARAMS_DICT[SEARCH_PARAMS[0].name] = SEARCH_PARAMS[0]
-
     track_admittance = not rv.track_impedance
 
-    dev = xtalx.z_sensor.find_one(serial_number=rv.sensor)
-    tc  = xtalx.z_sensor.make(dev, verbose=rv.verbose, yield_Y=track_admittance)
-
-    if track_admittance:
-        tc.info('Tracking admittance.')
-    else:
-        tc.info('Tracking impedance.')
-
-    if not rv.amplitude:
-        amplitude = tc.cal_dac_amp()
-        if amplitude is None:
-            raise Exception("Calibration page doesn't include the DAC voltage "
-                            "under which the calibration was performed, must "
-                            "specify --amplitude manually.")
-    elif rv.amplitude.upper().endswith('V'):
-        volts = float(rv.amplitude[:-1])
-        amplitude = tc.a_to_dac(volts)
-        if amplitude is None:
-            raise Exception("Calibration page doesn't have required voltage-"
-                            "to-DAC information to use amplitudes in Volts.")
-        amplitude = round(amplitude)
-    else:
-        amplitude = int(rv.amplitude)
-
-    tc.info('Using amplitude of %u DAC codes.' % amplitude)
-    volts = tc.dac_to_a(amplitude)
-    if volts is not None:
-        tc.info('Using amplitude of %f V.' % volts)
-
-    if not 0 <= amplitude <= 2000:
-        raise Exception('Amplitude not in range 0 to 2000.')
-
-    if rv.dump_file:
-        dump_file = open(  # pylint: disable=R1732
-                rv.dump_file, 'a', encoding='utf8')
-        dump_file.write('sweep,time_ns,f,dt,zx_real,zx_imag,RR,amplitude\n')
-        dump_file.flush()
-    else:
-        dump_file = None
-
-    if rv.fit_file:
-        fit_file = open(  # pylint: disable=R1732
-                rv.fit_file, 'a', encoding='utf8')
-        fit_file.write('time_ns,sweep,hires,peak_hz,peak_fwhm,RR,temp_c,'
-                       'density_g_per_ml,viscosity_cp,amplitude\n')
-        fit_file.flush()
-    else:
-        fit_file = None
-
-    f_min = SEARCH_PARAMS[0].f0
-    f_max = SEARCH_PARAMS[0].f1
-    tw    = TrackerWindow(tc, amplitude, f_min, f_max, rv.nfreqs,
-                          rv.search_time_secs, rv.sweep_time_secs,
-                          rv.settle_ms, tc.serial_num,
-                          tc.ginfo.have_temp_cal(), fit_file, dump_file)
-    tw.start()
+    dev    = xtalx.z_sensor.find_one(serial_number=rv.sensor)
+    tc     = xtalx.z_sensor.make(dev, verbose=rv.verbose,
+                                 yield_Y=track_admittance)
+    za, zl = z_common.parse_args(tc, rv)
+    tw     = TrackerWindow(tc, za, zl, tc.serial_num)
+    pt     = xtalx.z_sensor.PeakTracker(
+              tc, za.amplitude, za.f0, za.f1, za.df, za.nfreqs,
+              za.search_time_secs, za.sweep_time_secs,
+              settle_ms=za.settle_ms, delegate=tw)
+    pt.start_threaded()
 
     try:
         glotlib.interact()
     except KeyboardInterrupt:
         print()
     finally:
-        tc.info('Terminating USB poll thread...')
-        tw.stop()
-        tc.info('Done.')
+        pt.stop_threaded()
 
 
 def _main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--amplitude', '-a')
-    parser.add_argument('--freq-0', '-0')
-    parser.add_argument('--freq-1', '-1')
-    parser.add_argument('--df', type=float)
-    parser.add_argument('--nfreqs', '-n', type=int, default=100)
-    parser.add_argument('--verbose', '-v', action='store_true')
-    parser.add_argument('--search-time-secs', type=float, default=30)
-    parser.add_argument('--sweep-time-secs', type=float, default=30)
-    parser.add_argument('--settle-ms', type=int, default=5000)
-    parser.add_argument('--dump-file', '-d')
-    parser.add_argument('--fit-file', '-f')
-    parser.add_argument('--sensor', '-s')
-    parser.add_argument('--track-impedance', action='store_true')
+    z_common.add_arguments(parser)
     rv = parser.parse_args()
     main(rv)
 

@@ -12,7 +12,7 @@ from xtalx.tools.math import Lorentzian
 
 CHIRP_F0     = 15000
 CHIRP_F1     = 35000
-CHIRP_A      = 2000
+CHIRP_A      = 0.25
 CHIRP_MS     = 105
 CHIRP_DT     = CHIRP_MS * 0.001 * 2 + 0.02
 CHIRP_MIN_RR = 0.2
@@ -54,8 +54,6 @@ class Delegate:
 class PeakTracker:
     def __init__(self, tc, amplitude, f0, f1, search_df, nfreqs, search_time,
                  sweep_time, settle_ms=2, delegate=Delegate()):
-
-        self.sleep_cond     = threading.Condition()
         self.tc             = tc
         self.amplitude      = amplitude
         self.f0             = f0
@@ -68,6 +66,8 @@ class PeakTracker:
         self.sweep_time     = sweep_time
         self.settle_ms      = settle_ms
         self.delegate       = delegate
+        self.thread         = None
+        self.thread_cond    = threading.Condition()
 
         self.t_timeout      = None
         self.hires_f_center = None
@@ -75,6 +75,7 @@ class PeakTracker:
         self.min_rr         = None
         self.min_w          = None
         self.sensor_ms      = None
+        self.sweep          = 0
         self.sweep_t0_ns    = None
         self.state          = State.IDLE
         self.chirp_space    = np.linspace(CHIRP_F0, CHIRP_F1,
@@ -122,7 +123,8 @@ class PeakTracker:
         Start chirping and refine the data as it comes in.
         '''
         self.tc.info('Chirping from %f to %f...' % (CHIRP_F0, CHIRP_F1))
-        self.tc.send_auto_chirp_cmd(CHIRP_F0, CHIRP_F1, CHIRP_A)
+        self.tc.send_auto_chirp_cmd(CHIRP_F0, CHIRP_F1,
+                                    round(self.tc.a_to_dac(CHIRP_A)))
         self._transition(State.CHIRP_WAIT_DATA)
         self.t_timeout = time.time() + CHIRP_DT
 
@@ -198,6 +200,7 @@ class PeakTracker:
         self.delegate.sweep_callback(self.tc, self, self.sweep_t0_ns,
                                      self.sensor_ms + dt_ms, points, fw_fit,
                                      hires, temp_freq)
+        self.sweep += 1
 
         if self.state == State.IDLE:
             return
@@ -244,24 +247,26 @@ class PeakTracker:
         self.tc._synchronize()
 
         if lf and lf.RR >= CHIRP_MIN_RR and CHIRP_F0 <= lf.x0 <= CHIRP_F1:
-            self.tc.info('Chirp succeeded: x0 %s fwhm %s R**2 %.5f'
-                         % (lf.x0, lf.W*2, lf.RR))
+            strength = lf.A / (math.pi * lf.W)
+            self.tc.info('Chirp succeeded: peak_hz %s peak_fwhm %s '
+                         'strength %.2f RR %.5f' %
+                         (lf.x0, lf.W*2, strength, lf.RR))
             self.hires_width    = max(abs(lf.W * 2), 12)
             self.hires_f_center = lf.x0
             self._start_hires_sweep()
             return
 
         if lf:
-            self.tc.info('Chirp failed with R**2 = %.5f' % lf.RR)
+            self.tc.info('Chirp failed with RR = %.5f' % lf.RR)
         else:
             self.tc.info('Chirp failed with no fit.')
         self._start_peak_search_defaults()
 
-    def start(self):
+    def start_async(self):
         assert self.state == State.IDLE
         self._start_full_search()
 
-    def stop(self):
+    def stop_async(self):
         assert self.state != State.IDLE
         self.t_timeout = None
         self._transition(State.IDLE)
@@ -279,3 +284,23 @@ class PeakTracker:
 
         # Poll continuously.
         return 0
+
+    def start_threaded(self):
+        with self.thread_cond:
+            assert self.thread is None
+            self.thread = threading.Thread(target=self._poll_threaded)
+            self.thread.start()
+
+    def stop_threaded(self):
+        with self.thread_cond:
+            t, self.thread = self.thread, None
+            self.thread_cond.notify()
+        t.join()
+
+    def _poll_threaded(self):
+        with self.thread_cond:
+            if self.thread:
+                self._start_full_search()
+                while self.thread:
+                    dt = self.poll()
+                    self.thread_cond.wait(timeout=dt)
