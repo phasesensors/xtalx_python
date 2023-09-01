@@ -6,6 +6,7 @@ MODULES := \
 	xtalx/p_sensor/*.py \
 	xtalx/z_sensor/*.py \
 	xtalx/tools/config/*.py \
+	xtalx/tools/influxdb/*.py \
 	xtalx/tools/math/*.py \
 	xtalx/tools/p_sensor/*.py \
 	xtalx/tools/usb/*.py \
