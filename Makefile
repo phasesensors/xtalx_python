@@ -1,10 +1,12 @@
 # Copyright (c) 2021-2023 by Phase Advanced Sensor Systems Corp.
 MODULE      := xtalx
-MODULE_VERS := 1.0.5
+MODULE_VERS := 1.0.6
 MODULE_DEPS :=
 MODULES := \
 	xtalx/p_sensor/*.py \
 	xtalx/z_sensor/*.py \
+	xtalx/tools/config/*.py \
+	xtalx/tools/influxdb/*.py \
 	xtalx/tools/math/*.py \
 	xtalx/tools/p_sensor/*.py \
 	xtalx/tools/usb/*.py \
@@ -13,6 +15,7 @@ MODULES := \
 FLAKE_MODULES := xtalx
 LINT_MODULES  := xtalx
 WHEEL_PATH    := dist/$(MODULE)-$(MODULE_VERS)-py3-none-any.whl
+TGZ_PATH      := dist/$(MODULE)-$(MODULE_VERS).tar.gz
 
 .PHONY: all
 all: test packages
@@ -44,6 +47,11 @@ uninstall:
 
 .PHONY: packages
 packages: $(WHEEL_PATH)
+
+.PHONY: publish
+publish: all
+	python3 -m twine upload $(WHEEL_PATH) $(TGZ_PATH)
+
 
 $(WHEEL_PATH): setup.py setup.cfg $(MODULES)
 	python3 setup.py --quiet sdist bdist_wheel
