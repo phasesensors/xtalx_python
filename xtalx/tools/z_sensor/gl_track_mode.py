@@ -42,10 +42,11 @@ class ViewMode(Enum):
 
 
 class TrackerWindow(glotlib.Window, Delegate):
-    def __init__(self, tc, z_args, z_logger, name):
+    def __init__(self, tc, ipq, z_args, z_logger, name):
         super().__init__(900, 700, msaa=4, name=tc.serial_num or '')
 
         self.tc               = tc
+        self.ipq              = ipq
         self.z_args           = z_args
         self.z_logger         = z_logger
         self.data_gen         = -1
@@ -396,21 +397,32 @@ class TrackerWindow(glotlib.Window, Delegate):
                 self.sweep_prefix = 'Searching %s' % freq_str
             self.mark_dirty()
 
-    def sweep_callback(self, tc, pt, t0_ns, _duration_ms, points, fw_fit, hires,
+    def sweep_callback(self, tc, pt, t0_ns, duration_ms, points, fw_fit, hires,
                        temp_freq):
         T, D, V = self.z_logger.log_sweep(tc, pt, t0_ns, points, fw_fit, hires,
                                           temp_freq)
         self.data_callback(pt.sweep, fw_fit, points, T, D, V, hires)
 
+        if self.ipq:
+            p = self.make_influx_point(t0_ns, duration_ms, fw_fit, hires,
+                                       temp_freq)
+            self.ipq.append(p)
+
+    def make_influx_point(self, t0_ns, duration_ms, fw_fit, hires, temp_freq):
+        return self.tc.make_influx_point(t0_ns, duration_ms, fw_fit, hires,
+                                         temp_freq)
+
 
 def main(rv):
+    _c, ipq = z_common.parse_config(rv)
+
     track_admittance = not rv.track_impedance
 
     dev    = xtalx.z_sensor.find_one(serial_number=rv.sensor)
     tc     = xtalx.z_sensor.make(dev, verbose=rv.verbose,
                                  yield_Y=track_admittance)
     za, zl = z_common.parse_args(tc, rv)
-    tw     = TrackerWindow(tc, za, zl, tc.serial_num)
+    tw     = TrackerWindow(tc, ipq, za, zl, tc.serial_num)
     pt     = xtalx.z_sensor.PeakTracker(
               tc, za.amplitude, za.f0, za.f1, za.df, za.nfreqs,
               za.search_time_secs, za.sweep_time_secs,
@@ -423,6 +435,9 @@ def main(rv):
         print()
     finally:
         pt.stop_threaded()
+
+    if ipq:
+        ipq.flush()
 
 
 def _main():
