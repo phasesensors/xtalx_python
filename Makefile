@@ -15,6 +15,7 @@ MODULES := \
 FLAKE_MODULES := xtalx
 LINT_MODULES  := xtalx
 WHEEL_PATH    := dist/$(MODULE)-$(MODULE_VERS)-py3-none-any.whl
+TGZ_PATH      := dist/$(MODULE)-$(MODULE_VERS).tar.gz
 
 .PHONY: all
 all: test packages
@@ -46,6 +47,11 @@ uninstall:
 
 .PHONY: packages
 packages: $(WHEEL_PATH)
+
+.PHONY: publish
+publish: all
+	python3 -m twine upload $(WHEEL_PATH) $(TGZ_PATH)
+
 
 $(WHEEL_PATH): setup.py setup.cfg $(MODULES)
 	python3 setup.py --quiet sdist bdist_wheel
