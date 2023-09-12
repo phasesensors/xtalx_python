@@ -3,6 +3,8 @@
 import math
 
 import xtalx.z_sensor
+from xtalx.tools.config import Config
+from xtalx.tools.influxdb import InfluxDBPushQueue
 
 
 class SearchParams:
@@ -130,6 +132,21 @@ class ZDelegate(xtalx.z_sensor.peak_tracker.Delegate):
         self.z_logger.log_sweep(tc, pt, t0_ns, points, fw_fit, hires, temp_freq)
 
 
+def parse_config(rv):
+    if not rv.config:
+        return None, None
+
+    with open(rv.config, encoding='utf8') as f:
+        c = Config(f.readlines(), ['influx_host', 'influx_user',
+                                   'influx_password', 'influx_database'])
+
+        ipq = InfluxDBPushQueue(c.influx_host, 8086, c.influx_user,
+                                c.influx_password, database=c.influx_database,
+                                ssl=True, verify_ssl=True, timeout=100)
+
+    return c, ipq
+
+
 def parse_args(tc, rv):
     if rv.freq_0 is not None or rv.freq_1 is not None:
         if rv.freq_0 is None or rv.freq_1 is None:
@@ -177,4 +194,5 @@ def add_arguments(parser):
     parser.add_argument('--dump-file', '-d')
     parser.add_argument('--fit-file', '-f')
     parser.add_argument('--sensor', '-s')
+    parser.add_argument('--config', '-c')
     parser.add_argument('--track-impedance', action='store_true')
