@@ -11,7 +11,7 @@ class TinCan:
 
     def log(self, tag, s, timestamp=None):
         timestamp = timestamp or time.time_ns()
-        print('[%u] %s: %s' % (timestamp, tag, s))
+        print('[%u - %s] %s: %s' % (timestamp, self.serial_num, tag, s))
 
     def info(self, s, **kwargs):
         self.log('I', s, **kwargs)
