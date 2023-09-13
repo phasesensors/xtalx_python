@@ -68,6 +68,7 @@ class PeakTracker:
         self.delegate       = delegate
         self.thread         = None
         self.thread_cond    = threading.Condition()
+        self.thread_exc     = None
 
         self.t_timeout      = None
         self.hires_f_center = None
@@ -288,7 +289,8 @@ class PeakTracker:
     def start_threaded(self):
         with self.thread_cond:
             assert self.thread is None
-            self.thread = threading.Thread(target=self._poll_threaded)
+            self.thread_exc = None
+            self.thread     = threading.Thread(target=self._poll_threaded)
             self.thread.start()
 
     def stop_threaded(self):
@@ -298,9 +300,12 @@ class PeakTracker:
         t.join()
 
     def _poll_threaded(self):
-        with self.thread_cond:
-            if self.thread:
-                self._start_full_search()
-                while self.thread:
-                    dt = self.poll()
-                    self.thread_cond.wait(timeout=dt)
+        try:
+            with self.thread_cond:
+                if self.thread:
+                    self._start_full_search()
+                    while self.thread:
+                        dt = self.poll()
+                        self.thread_cond.wait(timeout=dt)
+        except Exception as e:
+            self.thread_exc = e
