@@ -1,7 +1,6 @@
 # Copyright (c) 2021-2023 by Phase Advanced Sensor Systems Corp.
 MODULE      := xtalx
 MODULE_VERS := 1.0.8
-MODULE_DEPS :=
 MODULES := \
 	xtalx/p_sensor/*.py \
 	xtalx/z_sensor/*.py \
@@ -51,7 +50,6 @@ packages: $(WHEEL_PATH)
 .PHONY: publish
 publish: all
 	python3 -m twine upload $(WHEEL_PATH) $(TGZ_PATH)
-
 
 $(WHEEL_PATH): setup.py setup.cfg $(MODULES)
 	python3 setup.py --quiet sdist bdist_wheel
