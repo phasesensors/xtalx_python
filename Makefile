@@ -2,9 +2,11 @@
 MODULE      := xtalx
 MODULE_VERS := 1.0.8
 MODULES := \
+	xtalx/i2c_bridge/*.py \
 	xtalx/p_sensor/*.py \
 	xtalx/z_sensor/*.py \
 	xtalx/tools/config/*.py \
+	xtalx/tools/i2c/*.py \
 	xtalx/tools/influxdb/*.py \
 	xtalx/tools/math/*.py \
 	xtalx/tools/p_sensor/*.py \
