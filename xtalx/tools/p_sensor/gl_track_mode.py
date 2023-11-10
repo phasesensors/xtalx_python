@@ -92,7 +92,7 @@ class TrackerWindow(glotlib.Window):
             timestamps = []
             pressures  = []
             for i in range(0, math.ceil(self.p_measurements.X[-1]),
-                                        self.period):
+                           self.period):
                 timestamps.append(i + self.period)
                 pressures.append(
                     self.p_measurements.get_avg_value(i, i + self.period))
