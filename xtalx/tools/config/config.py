@@ -29,3 +29,8 @@ class Config:
 
     def __getattr__(self, k):
         return self.kv_pairs[k]
+
+    @staticmethod
+    def from_path(path, required_keys):
+        with open(path, encoding='utf8') as f:
+            return Config(f.readlines(), required_keys)
