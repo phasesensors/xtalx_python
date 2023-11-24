@@ -14,17 +14,18 @@ class InfluxDBPushQueue:
     thread so as not to disturb the measurement times.
     '''
     def __init__(self, host, port, username, password, database=None,
-                 push_cb=None, **kwargs):
+                 push_cb=None, throttle_secs=0, **kwargs):
         self.push_cb = push_cb
         self.idb     = InfluxDBClient(host, port, username, password, **kwargs)
         if database:
             self.idb.switch_database(database)
 
-        self.queue_cond   = threading.Condition()
-        self.queue        = []
-        self.cookie_queue = []
-        self.thread       = None
-        self.running      = False
+        self.queue_cond    = threading.Condition()
+        self.queue         = []
+        self.cookie_queue  = []
+        self.thread        = None
+        self.running       = False
+        self.throttle_secs = throttle_secs
         self.start()
 
     def start(self):
@@ -95,3 +96,5 @@ class InfluxDBPushQueue:
                     if self.push_cb:
                         for p, c in zip(push_points, cookies):
                             self.push_cb(p, c)
+
+            time.sleep(self.throttle_secs)
