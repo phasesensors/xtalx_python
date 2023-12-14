@@ -180,6 +180,8 @@ class GetInfoResponse:
         self.cal_dac_amplitude    = rsp.params[7] >> 16
         self.electronics_cal_date = rsp.params[8]
         self.crystal_cal_date     = rsp.params[9]
+        self.air_f0               = rsp.params[10] / 1000
+        self.air_fwhm             = rsp.params[11] / 1000
 
     def have_temp_cal(self):
         return self.cal_params & (1 << 0)
