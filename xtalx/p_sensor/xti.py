@@ -2,6 +2,7 @@
 import threading
 import random
 import errno
+import time
 from enum import IntEnum
 
 import usb
@@ -323,6 +324,41 @@ class Measurement:
             s += '%s PSI, %s C' % (p, t)
 
         return s
+
+    def to_influx_point(self, time_ns=None, measurement='xtalx_data',
+                        fields=None):
+        time_ns = time_ns or time.time_ns()
+        fields  = fields or {}
+        p = {
+            'measurement' : measurement,
+            'time'        : time_ns,
+            'tags'        : {'sensor' : self.sensor.serial_num},
+            'fields'      : fields,
+        }
+        if self.mcu_temp_c is not None:
+            fields['mcu_temp_c'] = float(self.mcu_temp_c)
+        if self.pressure_psi is not None:
+            fields['pressure_psi'] = float(self.pressure_psi)
+        if self.temp_c is not None:
+            fields['temp_c'] = float(self.temp_c)
+        if self.pressure_freq is not None:
+            fields['pressure_freq_hz'] = float(self.pressure_freq)
+        if self.temp_freq is not None:
+            fields['temp_freq_hz'] = float(self.temp_freq)
+        if self.lores_pressure_psi is not None:
+            fields['lores_pressure_psi'] = float(self.lores_pressure_psi)
+        if self.lores_temp_c is not None:
+            fields['lores_temp_c'] = float(self.lores_temp_c)
+        if self.lores_pressure_freq is not None:
+            fields['lores_pressure_freq_hz'] = float(self.lores_pressure_freq)
+        if self.lores_temp_freq is not None:
+            fields['lores_temp_freq_hz'] = float(self.lores_temp_freq)
+        if self.cP is not None:
+            fields['cP']  = float(self.cP)
+            fields['cI']  = float(self.cI)
+            fields['cD']  = float(self.cD)
+            fields['dac'] = float(self.dac)
+        return p
 
 
 class XTI:
