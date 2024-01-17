@@ -1,6 +1,6 @@
 # Copyright (c) 2021-2023 by Phase Advanced Sensor Systems Corp.
 MODULE      := xtalx
-MODULE_VERS := 1.0.9
+MODULE_VERS := 1.1.0
 MODULE_DEPS :=
 MODULES := \
 	xtalx/p_sensor/*.py \
