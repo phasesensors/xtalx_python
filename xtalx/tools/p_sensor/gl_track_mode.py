@@ -108,7 +108,7 @@ class TrackerWindow(glotlib.Window):
 
 def measure_thread(x, tw, csv_file):
     t0 = time.time()
-    for m in x.yield_measurements():
+    for m in x.yield_measurements(do_reset=False):
         t = time.time()
         m._timestamp = dt = t - t0
         tw.measurement_callback(m)
