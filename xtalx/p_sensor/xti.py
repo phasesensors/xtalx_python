@@ -202,6 +202,8 @@ class Measurement:
 
 
 class XTI:
+    TELEMETRY_EP    = 0x81
+
     '''
     Given a USB device handle acquired via find() or find_one(), creates an
     XTI object that can be used to communicate with a sensor.
@@ -257,7 +259,7 @@ class XTI:
         measurement is currently available.
         '''
         with self.lock:
-            p = self.usb_dev.read(0x81, 64)
+            p = self.usb_dev.read(self.TELEMETRY_EP, 64, timeout=2000)
         return Measurement._from_packet(self, p)
 
     def _yield_measurements(self, do_reset):
