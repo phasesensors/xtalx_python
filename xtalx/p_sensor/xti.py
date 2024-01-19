@@ -1,6 +1,10 @@
 # Copyright (c) 2020-2023 by Phase Advanced Sensor Systems Corp.
 import threading
+import random
 import errno
+import time
+from enum import IntEnum
+
 import usb
 import usb.util
 
@@ -15,6 +19,88 @@ FC_FLAG_PRESSURE_FAILED     = (1 << 3)
 FC_FLAG_TEMP_FAILED         = (1 << 2)
 FC_FLAG_PRESSURE_UPDATE     = (1 << 1)
 FC_FLAG_TEMP_UPDATE         = (1 << 0)
+
+
+class Status(IntEnum):
+    OK              = 0
+    BAD_LENGTH      = 1
+    BAD_OPCODE      = 2
+    NOT_FOUND       = 3
+
+    @staticmethod
+    def rsp_to_status_str(rsp):
+        try:
+            s = '%s' % Status(rsp.status)
+        except ValueError:
+            s = '%u' % rsp.status
+        return s
+
+
+class CommandException(Exception):
+    def __init__(self, rsp):
+        super().__init__(
+            'Command exception: %s (%s)' % (Status.rsp_to_status_str(rsp), rsp))
+        self.rsp = rsp
+
+
+class Opcode(IntEnum):
+    GET_INFO        = 1
+    GET_PID_INFO    = 2
+    SET_PID_INFO    = 3
+    DISABLE_PID     = 4
+    ENABLE_PID      = 5
+    SET_DAC_VALUE   = 6
+    BAD_OPCODE      = 0xCCCC
+
+
+class CommandHeader(btype.Struct):
+    opcode          = btype.uint16_t()
+    tag             = btype.uint16_t()
+    flags           = btype.uint32_t()
+    _EXPECTED_SIZE  = 8
+
+
+class SetPIDInfoPayload(btype.Struct):
+    Kp              = btype.float64_t()
+    Ki              = btype.float64_t()
+    Kd              = btype.float64_t()
+    setpoint_c      = btype.float64_t()
+    _EXPECTED_SIZE  = 32
+
+
+class SetDACValuePayload(btype.Struct):
+    dac_value       = btype.float64_t()
+    _EXPECTED_SIZE  = 8
+
+
+class Response(btype.Struct):
+    opcode          = btype.uint16_t()
+    tag             = btype.uint16_t()
+    status          = btype.uint32_t()
+    params          = btype.Array(btype.uint32_t(), 12)
+    _EXPECTED_SIZE  = 56
+
+
+class GetInfoResponse(btype.Struct):
+    opcode          = btype.uint16_t()
+    tag             = btype.uint16_t()
+    status          = btype.uint32_t()
+    flags           = btype.uint32_t()
+    f_hs_mhz        = btype.uint32_t()
+    hclk            = btype.float64_t()
+    _EXPECTED_SIZE  = 24
+
+
+class GetPIDInfoResponse(btype.Struct):
+    opcode          = btype.uint16_t()
+    tag             = btype.uint16_t()
+    status          = btype.uint32_t()
+    Kp              = btype.float64_t()
+    Ki              = btype.float64_t()
+    Kd              = btype.float64_t()
+    setpoint_c      = btype.float64_t()
+    dac_t_val       = btype.float64_t()
+    _EXPECTED_SIZE  = 48
 
 
 class FrequencyPacket24(btype.Struct):
@@ -75,6 +161,29 @@ class FrequencyPacket56(btype.Struct):
     _EXPECTED_SIZE      = 56
 
 
+class FrequencyPacket56_110(btype.Struct):
+    '''
+    Firmware revision 1.1.0 redoes the entire packet contents, while
+    maintaining backwards-compatibility for the essential fields.
+    '''
+    cP                     = btype.float32_t()
+    cI                     = btype.float32_t()
+    cD                     = btype.float32_t()
+    dac_2p20               = btype.uint32_t()
+    pressure_hz_1e4        = btype.uint32_t()
+    flags                  = btype.uint16_t()
+    seq_num                = btype.uint8_t()
+    rsrv1                  = btype.uint8_t()
+    pressure_psi           = btype.float64_t()
+    temp_c                 = btype.float64_t()
+    temp_hz_1e4            = btype.uint32_t()
+    lores_pressure_hz_1e4  = btype.uint32_t()
+    lores_temp_hz_1e4      = btype.uint32_t()
+    lores_pressure_psi     = btype.float32_t()
+    lores_temp_c           = btype.float32_t()
+    _EXPECTED_SIZE         = 60
+
+
 class Measurement:
     '''
     Object encapsulating the results of an XTI sensor measurement.  The
@@ -130,33 +239,31 @@ class Measurement:
     typically only one of FC_FLAG_PRESSURE_UPDATE or FC_FLAG_TEMP_UPDATE will
     be set.
     '''
-    def __init__(self, sensor, ref_freq, pressure_edges, pressure_ref_clocks,
-                 temp_edges, temp_ref_clocks, mcu_temp_c, pressure_psi,
-                 temp_c, flags):
+    def __init__(self, sensor, mcu_temp_c, pressure_psi, temp_c, pressure_freq,
+                 temp_freq, lores_pressure_psi, lores_temp_c,
+                 lores_pressure_freq, lores_temp_freq, cP, cI, cD, dac, flags):
         self.sensor              = sensor
-        self.ref_freq            = ref_freq
-        self.pressure_edges      = pressure_edges
-        self.pressure_ref_clocks = pressure_ref_clocks
-        self.temp_edges          = temp_edges
-        self.temp_ref_clocks     = temp_ref_clocks
         self.mcu_temp_c          = mcu_temp_c
         self.pressure_psi        = pressure_psi
         self.temp_c              = temp_c
+        self.pressure_freq       = pressure_freq
+        self.temp_freq           = temp_freq
+        self.lores_pressure_psi  = lores_pressure_psi
+        self.lores_temp_c        = lores_temp_c
+        self.lores_pressure_freq = lores_pressure_freq
+        self.lores_temp_freq     = lores_temp_freq
+        self.cP                  = cP
+        self.cI                  = cI
+        self.cD                  = cD
+        self.dac                 = dac
         self.flags               = flags
-
-        if temp_ref_clocks > 3:
-            self.temp_freq = ref_freq * temp_edges / temp_ref_clocks
-        else:
-            self.temp_freq = None
-
-        if pressure_ref_clocks > 3:
-            self.pressure_freq = ref_freq * pressure_edges / pressure_ref_clocks
-        else:
-            self.pressure_freq = None
 
     @staticmethod
     def _from_packet(sensor, packet):
-        mt, p, t = None, None, None
+        mt, p, t, Fp, Ft = None, None, None, None, None
+        lp, lt, Flp, Flt = None, None, None, None
+        cP, cI, cD, dac  = None, None, None, None
+
         if sensor.usb_dev.bcdDevice < 0x0107:
             if len(packet) == 24:
                 fp = FrequencyPacket24.unpack(packet)
@@ -164,28 +271,46 @@ class Measurement:
                 fp = FrequencyPacket40.unpack(packet)
                 p  = fp.pressure_psi
                 t  = fp.temp_c
-        else:
+                Fp = fp.ref_freq*fp.pressure_edges/fp.pressure_ref_clocks
+                Ft = fp.ref_freq*fp.temp_edges/fp.temp_ref_clocks
+        elif sensor.usb_dev.bcdDevice < 0x0110:
             fp = FrequencyPacket56.unpack(packet)
             mt = fp.mcu_temp_c
             assert fp.flags and (fp.flags & FC_FLAGS_VALID)
             if (fp.flags & FC_FLAG_NO_TEMP_PRESSURE) == 0:
                 p = fp.pressure_psi
                 t = fp.temp_c
+                Fp = fp.ref_freq*fp.pressure_edges/fp.pressure_ref_clocks
+                Ft = fp.ref_freq*fp.temp_edges/fp.temp_ref_clocks
+        else:
+            fp = FrequencyPacket56_110.unpack(packet)
+            assert fp.flags and (fp.flags & FC_FLAGS_VALID)
+            if (fp.flags & FC_FLAG_NO_TEMP_PRESSURE) == 0:
+                p   = fp.pressure_psi
+                t   = fp.temp_c
+                Fp  = fp.pressure_hz_1e4 / 1e4
+                Ft  = fp.temp_hz_1e4 / 1e4
+                lp  = fp.lores_pressure_psi
+                lt  = fp.lores_temp_c
+                Flp = fp.lores_pressure_hz_1e4 / 1e4
+                Flt = fp.lores_temp_hz_1e4 / 1e4
+                if sensor.is_pid_supported():
+                    cP  = fp.cP
+                    cI  = fp.cI
+                    cD  = fp.cD
+                    dac = fp.dac_2p20 / 2**20
         flags = fp.flags if fp.flags & FC_FLAGS_VALID else None
 
-        return Measurement(sensor, fp.ref_freq, fp.pressure_edges,
-                           fp.pressure_ref_clocks, fp.temp_edges,
-                           fp.temp_ref_clocks, mt, p, t, flags)
+        return Measurement(sensor, mt, p, t, Fp, Ft, lp, lt, Flp, Flt, cP, cI,
+                           cD, dac, flags)
 
     def tostring(self, verbose=False):
         s = '%s: ' % self.sensor
         if verbose:
-            s += ('C %u pe %u prc %u pf %f te %u trc %u tf %f p %s t %s '
-                  'mt %s' % (self.ref_freq, self.pressure_edges,
-                             self.pressure_ref_clocks, self.pressure_freq,
-                             self.temp_edges, self.temp_ref_clocks,
-                             self.temp_freq, self.pressure_psi, self.temp_c,
-                             self.mcu_temp_c))
+            s += ('pf %f tf %f p %s t %s lpf %s ltf %s lp %s lt %s mt %s' %
+                  (self.pressure_freq, self.temp_freq, self.pressure_psi,
+                   self.temp_c, self.lores_pressure_freq, self.lores_temp_freq,
+                   self.lores_pressure_psi, self.lores_temp_c, self.mcu_temp_c))
         else:
             if self.pressure_psi is None:
                 p = 'n/a'
@@ -200,8 +325,47 @@ class Measurement:
 
         return s
 
+    def to_influx_point(self, time_ns=None, measurement='xtalx_data',
+                        fields=None):
+        time_ns = time_ns or time.time_ns()
+        fields  = fields or {}
+        p = {
+            'measurement' : measurement,
+            'time'        : time_ns,
+            'tags'        : {'sensor' : self.sensor.serial_num},
+            'fields'      : fields,
+        }
+        if self.mcu_temp_c is not None:
+            fields['mcu_temp_c'] = float(self.mcu_temp_c)
+        if self.pressure_psi is not None:
+            fields['pressure_psi'] = float(self.pressure_psi)
+        if self.temp_c is not None:
+            fields['temp_c'] = float(self.temp_c)
+        if self.pressure_freq is not None:
+            fields['pressure_freq_hz'] = float(self.pressure_freq)
+        if self.temp_freq is not None:
+            fields['temp_freq_hz'] = float(self.temp_freq)
+        if self.lores_pressure_psi is not None:
+            fields['lores_pressure_psi'] = float(self.lores_pressure_psi)
+        if self.lores_temp_c is not None:
+            fields['lores_temp_c'] = float(self.lores_temp_c)
+        if self.lores_pressure_freq is not None:
+            fields['lores_pressure_freq_hz'] = float(self.lores_pressure_freq)
+        if self.lores_temp_freq is not None:
+            fields['lores_temp_freq_hz'] = float(self.lores_temp_freq)
+        if self.cP is not None:
+            fields['cP']  = float(self.cP)
+            fields['cI']  = float(self.cI)
+            fields['cD']  = float(self.cD)
+            fields['dac'] = float(self.dac)
+        return p
+
 
 class XTI:
+    TELEMETRY_EP    = 0x81
+    CMD_EP          = 0x02
+    RSP_EP          = 0x83
+
     '''
     Given a USB device handle acquired via find() or find_one(), creates an
     XTI object that can be used to communicate with a sensor.
@@ -223,11 +387,20 @@ class XTI:
 
         if self.usb_dev.bcdDevice >= 0x0103:
             try:
-                self.report_id = usb.util.get_string(usb_dev, 15)
+                self.report_id = int(usb.util.get_string(usb_dev, 15))
             except ValueError:
                 self.report_id = None
         else:
             self.report_id = None
+
+        if self.usb_dev.bcdDevice >= 0x0110:
+            self.tag = random.randint(1, 0xFFFF)
+            self._set_measurement_config()
+            self.xinfo = self._get_info()
+            if self.xinfo.flags & (1 << 0):
+                self.pinfo = self._get_pid_info()
+            else:
+                self.pinfo = None
 
         self.usb_path = '%s:%s' % (
             usb_dev.bus, '.'.join('%u' % n for n in usb_dev.port_numbers))
@@ -251,13 +424,78 @@ class XTI:
     def _set_measurement_config(self):
         self._set_configuration(2)
 
+    def _alloc_tag(self):
+        tag      = self.tag
+        self.tag = 1 if self.tag == 0xFFFF else self.tag + 1
+        return tag
+
+    def _send_command(self, opcode, flags, params, bulk_data, timeout):
+        tag  = self._alloc_tag()
+        hdr  = CommandHeader(opcode=opcode, tag=tag, flags=flags)
+        data = hdr.pack() + params + bytes(48 - len(params)) + bulk_data
+        size = self.usb_dev.write(self.CMD_EP, data, timeout=timeout)
+        assert size == len(data)
+        return tag
+
+    def _recv_response(self, tag, timeout, cls=Response):
+        data = self.usb_dev.read(self.RSP_EP, Response._STRUCT.size,
+                                 timeout=timeout)
+        assert len(data) == Response._STRUCT.size
+        rsp = cls.unpack_from(data)
+        assert rsp.tag == tag
+
+        if rsp.status != Status.OK:
+            rsp.opcode = Opcode(rsp.opcode)
+            raise CommandException(rsp)
+
+        return rsp
+
+    def _exec_command(self, opcode, flags=0, params=b'', bulk_data=b'',
+                      timeout=1000, cls=Response):
+        tag = self._send_command(opcode, flags, params, bulk_data, timeout)
+        return self._recv_response(tag, timeout, cls=cls)
+
+    def _get_info(self):
+        return self._exec_command(Opcode.GET_INFO, cls=GetInfoResponse)
+
+    def _get_pid_info(self):
+        return self._exec_command(Opcode.GET_PID_INFO, cls=GetPIDInfoResponse)
+
+    def _set_pid_info(self, Kp=None, Ki=None, Kd=None, setpoint_c=None):
+        flags = 0
+        if Kp is not None:
+            flags |= (1 << 0)
+        if Ki is not None:
+            flags |= (1 << 1)
+        if Kd is not None:
+            flags |= (1 << 2)
+        if setpoint_c is not None:
+            flags |= (1 << 3)
+        payload = SetPIDInfoPayload(Kp=(Kp or 0), Ki=(Ki or 0), Kd=(Kd or 0),
+                                    setpoint_c=(setpoint_c or 0))
+        return self._exec_command(Opcode.SET_PID_INFO, flags, payload.pack())
+
+    def _disable_pid(self):
+        return self._exec_command(Opcode.DISABLE_PID)
+
+    def _enable_pid(self):
+        return self._exec_command(Opcode.ENABLE_PID)
+
+    def _set_dac_value(self, dac_value):
+        return self._exec_command(
+                Opcode.SET_DAC_VALUE,
+                params=SetDACValuePayload(dac_value=dac_value).pack())
+
+    def is_pid_supported(self):
+        return self.pinfo is not None
+
     def read_measurement(self):
         '''
         Synchronously read a single measurement from the sensor, blocking if no
         measurement is currently available.
         '''
         with self.lock:
-            p = self.usb_dev.read(0x81, 64)
+            p = self.usb_dev.read(self.TELEMETRY_EP, 64, timeout=2000)
         return Measurement._from_packet(self, p)
 
     def _yield_measurements(self, do_reset):

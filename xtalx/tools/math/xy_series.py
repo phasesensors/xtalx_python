@@ -28,7 +28,7 @@ class XYSeries:
         '''
         if x0 <= x1:
             return self._integrate(x0, x1)[0]
-        return -self._integrate(x1, x0)[0]
+        return -self._integrate(x1, x0)[0]  # pylint: disable=W1114
 
     def get_avg_value(self, x0, x1):
         '''

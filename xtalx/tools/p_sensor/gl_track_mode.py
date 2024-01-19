@@ -18,27 +18,34 @@ class TrackerWindow(glotlib.Window):
     def __init__(self, name, period):
         super().__init__(900, 700, msaa=4, name=name)
 
-        self.period         = period
-        self.data_gen       = -1
-        self.plot_gen       = -1
-        self.data_lock      = threading.Lock()
-        self.new_data       = []
-        self.p_measurements = XYSeries([], [])
-        self.t_measurements = XYSeries([], [])
+        self.period          = period
+        self.data_gen        = -1
+        self.plot_gen        = -1
+        self.data_lock       = threading.Lock()
+        self.new_data        = []
+        self.p_measurements  = XYSeries([], [])
+        self.t_measurements  = XYSeries([], [])
+        self.lp_measurements = XYSeries([], [])
+        self.lt_measurements = XYSeries([], [])
 
         self.p_plot = self.add_plot(
             311, limits=(-0.1, -0.5, 120, 300), max_v_ticks=10)
+        self.lp_lines = self.p_plot.add_steps([], width=LINE_WIDTH)
         self.p_lines = self.p_plot.add_lines([], width=LINE_WIDTH)
+        self.lp_lines.color = (0.78, 0.87, 0.93, 1)
 
         self.p_slow_plot = self.add_plot(
             312, limits=(-0.1, -0.5, 120, 300), max_v_ticks=10,
             sharex=self.p_plot, sharey=self.p_plot)
+        self.lp_slow_lines = self.p_slow_plot.add_lines([], width=LINE_WIDTH)
         self.p_slow_lines = self.p_slow_plot.add_lines([], width=LINE_WIDTH)
 
         self.t_plot = self.add_plot(
             313, limits=(-0.1, -0.5, 120, 50), max_v_ticks=10,
             sharex=self.p_plot)
+        self.lt_lines = self.t_plot.add_steps([], width=LINE_WIDTH)
         self.t_lines = self.t_plot.add_lines([], width=LINE_WIDTH)
+        self.lt_lines.color = (0.78, 0.87, 0.93, 1)
 
         self.pos_label = self.add_label((0.99, 0.01), '', anchor='SE')
 
@@ -77,17 +84,42 @@ class TrackerWindow(glotlib.Window):
         if new_data:
             updated = True
 
+            self.lt_measurements.append(
+                [m._timestamp for m in new_data if m.lores_temp_c is not None],
+                [m.lores_temp_c for m in new_data
+                 if m.lores_temp_c is not None])
+            self.lt_lines.set_x_y_data(self.lt_measurements.X,
+                                       self.lt_measurements.Y)
+
             self.t_measurements.append(
                 [m._timestamp for m in new_data],
                 [m.temp_c for m in new_data])
             self.t_lines.set_x_y_data(self.t_measurements.X,
                                       self.t_measurements.Y)
 
+            self.lp_measurements.append(
+                [m._timestamp for m in new_data
+                 if m.lores_pressure_psi is not None],
+                [m.lores_pressure_psi for m in new_data
+                 if m.lores_pressure_psi is not None])
+            self.lp_lines.set_x_y_data(self.lp_measurements.X,
+                                       self.lp_measurements.Y)
+
             self.p_measurements.append(
                 [m._timestamp for m in new_data],
                 [m.pressure_psi for m in new_data])
             self.p_lines.set_x_y_data(self.p_measurements.X,
                                       self.p_measurements.Y)
+
+            if len(self.lp_measurements.X):
+                timestamps = []
+                pressures  = []
+                for i in range(0, math.ceil(self.lp_measurements.X[-1]),
+                               self.period):
+                    timestamps.append(i + self.period)
+                    pressures.append(
+                        self.lp_measurements.get_avg_value(i, i + self.period))
+                self.lp_slow_lines.set_x_y_data(timestamps, pressures)
 
             timestamps = []
             pressures  = []
@@ -108,7 +140,7 @@ class TrackerWindow(glotlib.Window):
 
 def measure_thread(x, tw, csv_file):
     t0 = time.time()
-    for m in x.yield_measurements():
+    for m in x.yield_measurements(do_reset=False):
         t = time.time()
         m._timestamp = dt = t - t0
         tw.measurement_callback(m)
