@@ -223,7 +223,7 @@ class XTI:
 
         if self.usb_dev.bcdDevice >= 0x0103:
             try:
-                self.report_id = usb.util.get_string(usb_dev, 15)
+                self.report_id = int(usb.util.get_string(usb_dev, 15))
             except ValueError:
                 self.report_id = None
         else:
