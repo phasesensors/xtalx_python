@@ -277,23 +277,27 @@ class Measurement:
             fp = FrequencyPacket56.unpack(packet)
             mt = fp.mcu_temp_c
             assert fp.flags and (fp.flags & FC_FLAGS_VALID)
+            if not (fp.flags & FC_FLAG_PRESSURE_FAILED):
+                Fp = fp.ref_freq*fp.pressure_edges/fp.pressure_ref_clocks
+            if not (fp.flags & FC_FLAG_TEMP_FAILED):
+                Ft = fp.ref_freq*fp.temp_edges/fp.temp_ref_clocks
             if (fp.flags & FC_FLAG_NO_TEMP_PRESSURE) == 0:
                 p = fp.pressure_psi
                 t = fp.temp_c
-                Fp = fp.ref_freq*fp.pressure_edges/fp.pressure_ref_clocks
-                Ft = fp.ref_freq*fp.temp_edges/fp.temp_ref_clocks
         else:
             fp = FrequencyPacket56_110.unpack(packet)
             assert fp.flags and (fp.flags & FC_FLAGS_VALID)
+            if not (fp.flags & FC_FLAG_PRESSURE_FAILED):
+                Fp  = fp.pressure_hz_1e4 / 1e4
+                Flp = fp.lores_pressure_hz_1e4 / 1e4
+            if not (fp.flags & FC_FLAG_TEMP_FAILED):
+                Ft  = fp.temp_hz_1e4 / 1e4
+                Flt = fp.lores_temp_hz_1e4 / 1e4
             if (fp.flags & FC_FLAG_NO_TEMP_PRESSURE) == 0:
                 p   = fp.pressure_psi
                 t   = fp.temp_c
-                Fp  = fp.pressure_hz_1e4 / 1e4
-                Ft  = fp.temp_hz_1e4 / 1e4
                 lp  = fp.lores_pressure_psi
                 lt  = fp.lores_temp_c
-                Flp = fp.lores_pressure_hz_1e4 / 1e4
-                Flt = fp.lores_temp_hz_1e4 / 1e4
                 if sensor.is_pid_supported():
                     cP  = fp.cP
                     cI  = fp.cI
@@ -307,10 +311,12 @@ class Measurement:
     def tostring(self, verbose=False):
         s = '%s: ' % self.sensor
         if verbose:
-            s += ('pf %f tf %f p %s t %s lpf %s ltf %s lp %s lt %s mt %s' %
-                  (self.pressure_freq, self.temp_freq, self.pressure_psi,
-                   self.temp_c, self.lores_pressure_freq, self.lores_temp_freq,
-                   self.lores_pressure_psi, self.lores_temp_c, self.mcu_temp_c))
+            s += ('F 0x%04X pf %s tf %s p %s t %s lpf %s ltf %s lp %s lt %s '
+                  'mt %s' %
+                  (self.flags, self.pressure_freq, self.temp_freq,
+                   self.pressure_psi, self.temp_c, self.lores_pressure_freq,
+                   self.lores_temp_freq, self.lores_pressure_psi,
+                   self.lores_temp_c, self.mcu_temp_c))
         else:
             if self.pressure_psi is None:
                 p = 'n/a'
