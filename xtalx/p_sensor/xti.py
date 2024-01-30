@@ -495,16 +495,16 @@ class XTI:
     def is_pid_supported(self):
         return self.pinfo is not None
 
-    def read_measurement(self):
+    def read_measurement(self, timeout=2000):
         '''
         Synchronously read a single measurement from the sensor, blocking if no
         measurement is currently available.
         '''
         with self.lock:
-            p = self.usb_dev.read(self.TELEMETRY_EP, 64, timeout=2000)
+            p = self.usb_dev.read(self.TELEMETRY_EP, 64, timeout=timeout)
         return Measurement._from_packet(self, p)
 
-    def _yield_measurements(self, do_reset):
+    def _yield_measurements(self, do_reset, timeout):
         with self.lock:
             if do_reset:
                 self.usb_dev.reset()
@@ -512,20 +512,20 @@ class XTI:
 
             while not self._halt_yield:
                 try:
-                    yield self.read_measurement()
+                    yield self.read_measurement(timeout=timeout)
                 except usb.core.USBError as e:
                     if e.errno != errno.ETIMEDOUT:
                         raise
                     continue
 
-    def yield_measurements(self, do_reset=True):
+    def yield_measurements(self, do_reset=True, timeout=2000):
         '''
         Yields Measurement objects synchronously in the current thread,
         blocking while waiting for new measurements to be acquired.
         '''
         with self.lock:
             self._halt_yield = False
-            yield from self._yield_measurements(do_reset)
+            yield from self._yield_measurements(do_reset, timeout=timeout)
 
     def halt_yield(self):
         '''
@@ -534,12 +534,12 @@ class XTI:
         '''
         self._halt_yield = True
 
-    def _read_measurements_async(self, handler, do_reset):
+    def _read_measurements_async(self, handler, do_reset, timeout):
         with self.lock:
-            for m in self._yield_measurements(do_reset):
+            for m in self._yield_measurements(do_reset, timeout=timeout):
                 handler(m)
 
-    def read_measurements(self, handler, do_reset=True):
+    def read_measurements(self, handler, do_reset=True, timeout=2000):
         '''
         Reads measurements asynchronously in a separate thread, calling the
         handler as measurements become available.  The handler should take a
@@ -549,7 +549,7 @@ class XTI:
             assert self.thread is None
             self._halt_yield = False
             self.thread = threading.Thread(target=self._read_measurements_async,
-                                           args=(handler, do_reset),
+                                           args=(handler, do_reset, timeout),
                                            daemon=False)
             self.thread.start()
 
