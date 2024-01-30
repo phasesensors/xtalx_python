@@ -277,23 +277,27 @@ class Measurement:
             fp = FrequencyPacket56.unpack(packet)
             mt = fp.mcu_temp_c
             assert fp.flags and (fp.flags & FC_FLAGS_VALID)
+            if not (fp.flags & FC_FLAG_PRESSURE_FAILED):
+                Fp = fp.ref_freq*fp.pressure_edges/fp.pressure_ref_clocks
+            if not (fp.flags & FC_FLAG_TEMP_FAILED):
+                Ft = fp.ref_freq*fp.temp_edges/fp.temp_ref_clocks
             if (fp.flags & FC_FLAG_NO_TEMP_PRESSURE) == 0:
                 p = fp.pressure_psi
                 t = fp.temp_c
-                Fp = fp.ref_freq*fp.pressure_edges/fp.pressure_ref_clocks
-                Ft = fp.ref_freq*fp.temp_edges/fp.temp_ref_clocks
         else:
             fp = FrequencyPacket56_110.unpack(packet)
             assert fp.flags and (fp.flags & FC_FLAGS_VALID)
+            if not (fp.flags & FC_FLAG_PRESSURE_FAILED):
+                Fp  = fp.pressure_hz_1e4 / 1e4
+                Flp = fp.lores_pressure_hz_1e4 / 1e4
+            if not (fp.flags & FC_FLAG_TEMP_FAILED):
+                Ft  = fp.temp_hz_1e4 / 1e4
+                Flt = fp.lores_temp_hz_1e4 / 1e4
             if (fp.flags & FC_FLAG_NO_TEMP_PRESSURE) == 0:
                 p   = fp.pressure_psi
                 t   = fp.temp_c
-                Fp  = fp.pressure_hz_1e4 / 1e4
-                Ft  = fp.temp_hz_1e4 / 1e4
                 lp  = fp.lores_pressure_psi
                 lt  = fp.lores_temp_c
-                Flp = fp.lores_pressure_hz_1e4 / 1e4
-                Flt = fp.lores_temp_hz_1e4 / 1e4
                 if sensor.is_pid_supported():
                     cP  = fp.cP
                     cI  = fp.cI
@@ -307,10 +311,12 @@ class Measurement:
     def tostring(self, verbose=False):
         s = '%s: ' % self.sensor
         if verbose:
-            s += ('pf %f tf %f p %s t %s lpf %s ltf %s lp %s lt %s mt %s' %
-                  (self.pressure_freq, self.temp_freq, self.pressure_psi,
-                   self.temp_c, self.lores_pressure_freq, self.lores_temp_freq,
-                   self.lores_pressure_psi, self.lores_temp_c, self.mcu_temp_c))
+            s += ('F 0x%04X pf %s tf %s p %s t %s lpf %s ltf %s lp %s lt %s '
+                  'mt %s' %
+                  (self.flags, self.pressure_freq, self.temp_freq,
+                   self.pressure_psi, self.temp_c, self.lores_pressure_freq,
+                   self.lores_temp_freq, self.lores_pressure_psi,
+                   self.lores_temp_c, self.mcu_temp_c))
         else:
             if self.pressure_psi is None:
                 p = 'n/a'
@@ -489,16 +495,16 @@ class XTI:
     def is_pid_supported(self):
         return self.pinfo is not None
 
-    def read_measurement(self):
+    def read_measurement(self, timeout=2000):
         '''
         Synchronously read a single measurement from the sensor, blocking if no
         measurement is currently available.
         '''
         with self.lock:
-            p = self.usb_dev.read(self.TELEMETRY_EP, 64, timeout=2000)
+            p = self.usb_dev.read(self.TELEMETRY_EP, 64, timeout=timeout)
         return Measurement._from_packet(self, p)
 
-    def _yield_measurements(self, do_reset):
+    def _yield_measurements(self, do_reset, timeout):
         with self.lock:
             if do_reset:
                 self.usb_dev.reset()
@@ -506,20 +512,20 @@ class XTI:
 
             while not self._halt_yield:
                 try:
-                    yield self.read_measurement()
+                    yield self.read_measurement(timeout=timeout)
                 except usb.core.USBError as e:
                     if e.errno != errno.ETIMEDOUT:
                         raise
                     continue
 
-    def yield_measurements(self, do_reset=True):
+    def yield_measurements(self, do_reset=True, timeout=2000):
         '''
         Yields Measurement objects synchronously in the current thread,
         blocking while waiting for new measurements to be acquired.
         '''
         with self.lock:
             self._halt_yield = False
-            yield from self._yield_measurements(do_reset)
+            yield from self._yield_measurements(do_reset, timeout=timeout)
 
     def halt_yield(self):
         '''
@@ -528,12 +534,12 @@ class XTI:
         '''
         self._halt_yield = True
 
-    def _read_measurements_async(self, handler, do_reset):
+    def _read_measurements_async(self, handler, do_reset, timeout):
         with self.lock:
-            for m in self._yield_measurements(do_reset):
+            for m in self._yield_measurements(do_reset, timeout=timeout):
                 handler(m)
 
-    def read_measurements(self, handler, do_reset=True):
+    def read_measurements(self, handler, do_reset=True, timeout=2000):
         '''
         Reads measurements asynchronously in a separate thread, calling the
         handler as measurements become available.  The handler should take a
@@ -543,7 +549,7 @@ class XTI:
             assert self.thread is None
             self._halt_yield = False
             self.thread = threading.Thread(target=self._read_measurements_async,
-                                           args=(handler, do_reset),
+                                           args=(handler, do_reset, timeout),
                                            daemon=False)
             self.thread.start()
 
