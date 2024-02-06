@@ -84,14 +84,17 @@ class TrackerWindow(glotlib.Window):
         if new_data:
             updated = True
 
+            # Low-res temperature measurements.
             X = [m._timestamp for m in new_data if m.lores_temp_c is not None]
             Y = [m.lores_temp_c for m in new_data if m.lores_temp_c is not None]
             self.lt_lines.append_x_y_data(X, Y)
 
+            # Hi-res temperature measurements.
             self.t_lines.append_x_y_data(
                 [m._timestamp for m in new_data],
                 [m.temp_c for m in new_data])
 
+            # Low-res pressure (LP) measurements.
             X = [m._timestamp for m in new_data
                  if m.lores_pressure_psi is not None]
             Y = [m.lores_pressure_psi for m in new_data
@@ -122,6 +125,7 @@ class TrackerWindow(glotlib.Window):
                     t += self.period
                 self.lp_slow_lines.sub_x_y_data(index, timestamps, pressures)
 
+            # Hi-res pressure (P) measurements.
             X = [m._timestamp for m in new_data]
             Y = [m.pressure_psi for m in new_data]
             p_len = len(self.p_slow_lines.vertices)
