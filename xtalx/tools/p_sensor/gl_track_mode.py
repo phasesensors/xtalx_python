@@ -24,27 +24,27 @@ class TrackerWindow(glotlib.Window):
         self.data_lock       = threading.Lock()
         self.new_data        = []
         self.p_measurements  = XYSeries([], [])
-        self.t_measurements  = XYSeries([], [])
         self.lp_measurements = XYSeries([], [])
-        self.lt_measurements = XYSeries([], [])
 
         self.p_plot = self.add_plot(
             311, limits=(-0.1, -0.5, 120, 300), max_v_ticks=10)
-        self.lp_lines = self.p_plot.add_steps([], width=LINE_WIDTH)
-        self.p_lines = self.p_plot.add_lines([], width=LINE_WIDTH)
+        self.lp_lines = self.p_plot.add_steps(X=[], Y=[], width=LINE_WIDTH)
+        self.p_lines = self.p_plot.add_steps(X=[], Y=[], width=LINE_WIDTH)
         self.lp_lines.color = (0.78, 0.87, 0.93, 1)
 
         self.p_slow_plot = self.add_plot(
             312, limits=(-0.1, -0.5, 120, 300), max_v_ticks=10,
             sharex=self.p_plot, sharey=self.p_plot)
-        self.lp_slow_lines = self.p_slow_plot.add_lines([], width=LINE_WIDTH)
-        self.p_slow_lines = self.p_slow_plot.add_lines([], width=LINE_WIDTH)
+        self.lp_slow_lines = self.p_slow_plot.add_lines(X=[], Y=[],
+                                                        width=LINE_WIDTH)
+        self.p_slow_lines = self.p_slow_plot.add_lines(X=[], Y=[],
+                                                       width=LINE_WIDTH)
 
         self.t_plot = self.add_plot(
             313, limits=(-0.1, -0.5, 120, 50), max_v_ticks=10,
             sharex=self.p_plot)
-        self.lt_lines = self.t_plot.add_steps([], width=LINE_WIDTH)
-        self.t_lines = self.t_plot.add_lines([], width=LINE_WIDTH)
+        self.lt_lines = self.t_plot.add_steps(X=[], Y=[], width=LINE_WIDTH)
+        self.t_lines = self.t_plot.add_steps(X=[], Y=[],  width=LINE_WIDTH)
         self.lt_lines.color = (0.78, 0.87, 0.93, 1)
 
         self.pos_label = self.add_label((0.99, 0.01), '', anchor='SE')
@@ -84,51 +84,60 @@ class TrackerWindow(glotlib.Window):
         if new_data:
             updated = True
 
-            self.lt_measurements.append(
-                [m._timestamp for m in new_data if m.lores_temp_c is not None],
-                [m.lores_temp_c for m in new_data
-                 if m.lores_temp_c is not None])
-            self.lt_lines.set_x_y_data(self.lt_measurements.X,
-                                       self.lt_measurements.Y)
+            X = [m._timestamp for m in new_data if m.lores_temp_c is not None]
+            Y = [m.lores_temp_c for m in new_data if m.lores_temp_c is not None]
+            self.lt_lines.append_x_y_data(X, Y)
 
-            self.t_measurements.append(
+            self.t_lines.append_x_y_data(
                 [m._timestamp for m in new_data],
                 [m.temp_c for m in new_data])
-            self.t_lines.set_x_y_data(self.t_measurements.X,
-                                      self.t_measurements.Y)
 
-            self.lp_measurements.append(
-                [m._timestamp for m in new_data
-                 if m.lores_pressure_psi is not None],
-                [m.lores_pressure_psi for m in new_data
-                 if m.lores_pressure_psi is not None])
-            self.lp_lines.set_x_y_data(self.lp_measurements.X,
-                                       self.lp_measurements.Y)
+            X = [m._timestamp for m in new_data
+                 if m.lores_pressure_psi is not None]
+            Y = [m.lores_pressure_psi for m in new_data
+                 if m.lores_pressure_psi is not None]
+            self.lp_measurements.append(X, Y)
+            self.lp_lines.append_x_y_data(X, Y)
 
-            self.p_measurements.append(
-                [m._timestamp for m in new_data],
-                [m.pressure_psi for m in new_data])
-            self.p_lines.set_x_y_data(self.p_measurements.X,
-                                      self.p_measurements.Y)
+            X = [m._timestamp for m in new_data]
+            Y = [m.pressure_psi for m in new_data]
+            self.p_measurements.append(X, Y)
+            self.p_lines.append_x_y_data(X, Y)
 
+            # Averaged data from LP measurements.
             if len(self.lp_measurements.X):
                 timestamps = []
                 pressures  = []
-                for i in range(0, math.ceil(self.lp_measurements.X[-1]),
-                               self.period):
-                    timestamps.append(i + self.period)
-                    pressures.append(
-                        self.lp_measurements.get_avg_value(i, i + self.period))
-                self.lp_slow_lines.set_x_y_data(timestamps, pressures)
+                i          = int(self.lp_measurements.X[-1] // self.period)
+                if i > 0:
+                    t = (i - 1) * self.period
+                    p = self.lp_measurements.get_avg_value(t, t + self.period)
+                    timestamps.append(t + self.period / 2)
+                    pressures.append(p)
+                t = i * self.period
+                p = self.lp_measurements.get_avg_value(t, t + self.period)
+                timestamps.append(t + self.period / 2)
+                pressures.append(p)
 
+                index = max(i - 1, 0)
+                self.lp_slow_lines.sub_x_y_data(index, timestamps, pressures)
+
+            # Averaged data from P measurements.
             timestamps = []
             pressures  = []
-            for i in range(0, math.ceil(self.p_measurements.X[-1]),
-                           self.period):
-                timestamps.append(i + self.period)
-                pressures.append(
-                    self.p_measurements.get_avg_value(i, i + self.period))
-            self.p_slow_lines.set_x_y_data(timestamps, pressures)
+            i          = int(self.p_measurements.X[-1] // self.period)
+            if i > 0:
+                t = (i - 1) * self.period
+                p = self.p_measurements.get_avg_value(t, t + self.period)
+                timestamps.append(t + self.period / 2)
+                pressures.append(p)
+            t = i * self.period
+            p = self.p_measurements.get_avg_value(t, t + self.period)
+            timestamps.append(t + self.period / 2)
+            pressures.append(p)
+
+            index = max(i - 1, 0)
+            self.p_slow_lines.sub_x_y_data(index, timestamps, pressures)
 
         return updated
 
