@@ -84,59 +84,73 @@ class TrackerWindow(glotlib.Window):
         if new_data:
             updated = True
 
+            # Low-res temperature measurements.
             X = [m._timestamp for m in new_data if m.lores_temp_c is not None]
             Y = [m.lores_temp_c for m in new_data if m.lores_temp_c is not None]
             self.lt_lines.append_x_y_data(X, Y)
 
+            # Hi-res temperature measurements.
             self.t_lines.append_x_y_data(
                 [m._timestamp for m in new_data],
                 [m.temp_c for m in new_data])
 
+            # Low-res pressure (LP) measurements.
             X = [m._timestamp for m in new_data
                  if m.lores_pressure_psi is not None]
             Y = [m.lores_pressure_psi for m in new_data
                  if m.lores_pressure_psi is not None]
+            lp_len = len(self.lp_slow_lines.vertices)
+            if lp_len:
+                lp_timestamp = self.lp_measurements.X[-1]
             self.lp_measurements.append(X, Y)
             self.lp_lines.append_x_y_data(X, Y)
 
+            # Averaged data from LP measurements.
+            if len(X):
+                if lp_len:
+                    t0    = int(lp_timestamp // self.period) * self.period
+                    index = lp_len - 1
+                else:
+                    t0    = int(X[0] // self.period) * self.period
+                    index = 0
+
+                timestamps = []
+                pressures  = []
+                t          = t0
+                while t <= X[-1]:
+                    p = self.lp_measurements.get_avg_value(t, t + self.period)
+                    if p is not None:
+                        timestamps.append(t + self.period / 2)
+                        pressures.append(p)
+                    t += self.period
+                self.lp_slow_lines.sub_x_y_data(index, timestamps, pressures)
+
+            # Hi-res pressure (P) measurements.
             X = [m._timestamp for m in new_data]
             Y = [m.pressure_psi for m in new_data]
+            p_len = len(self.p_slow_lines.vertices)
+            if p_len:
+                p_timestamp = self.p_measurements.X[-1]
             self.p_measurements.append(X, Y)
             self.p_lines.append_x_y_data(X, Y)
 
-            # Averaged data from LP measurements.
-            if len(self.lp_measurements.X):
-                timestamps = []
-                pressures  = []
-                i          = int(self.lp_measurements.X[-1] // self.period)
-                if i > 0:
-                    t = (i - 1) * self.period
-                    p = self.lp_measurements.get_avg_value(t, t + self.period)
-                    timestamps.append(t + self.period / 2)
-                    pressures.append(p)
-                t = i * self.period
-                p = self.lp_measurements.get_avg_value(t, t + self.period)
-                timestamps.append(t + self.period / 2)
-                pressures.append(p)
-
-                index = max(i - 1, 0)
-                self.lp_slow_lines.sub_x_y_data(index, timestamps, pressures)
-
             # Averaged data from P measurements.
+            if p_len:
+                t0    = int(p_timestamp // self.period) * self.period
+                index = p_len - 1
+            else:
+                t0    = int(X[0] // self.period) * self.period
+                index = 0
+
             timestamps = []
             pressures  = []
-            i          = int(self.p_measurements.X[-1] // self.period)
-            if i > 0:
-                t = (i - 1) * self.period
+            t          = t0
+            while t <= X[-1]:
                 p = self.p_measurements.get_avg_value(t, t + self.period)
-                timestamps.append(t + self.period / 2)
-                pressures.append(p)
-            t = i * self.period
-            p = self.p_measurements.get_avg_value(t, t + self.period)
-            timestamps.append(t + self.period / 2)
-            pressures.append(p)
-
-            index = max(i - 1, 0)
+                if p is not None:
+                    timestamps.append(t + self.period / 2)
+                    pressures.append(p)
+                t += self.period
             self.p_slow_lines.sub_x_y_data(index, timestamps, pressures)
 
         return updated
