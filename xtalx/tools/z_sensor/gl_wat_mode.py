@@ -3,7 +3,6 @@
 import threading
 import argparse
 import cmath
-import math
 import time
 from enum import Enum
 
@@ -50,28 +49,38 @@ class WATWindow(glotlib.Window, Delegate):
                                          limits=(0, 27000, 130, 29500))
         self.f_vs_T_lines = self.f_vs_T_plot.add_lines(X=[], Y=[])
         self.f_vs_T_point = self.f_vs_T_plot.add_points(X=[], Y=[], width=3)
+        self.f_vs_T_plot.set_x_label('Temperature (C)')
+        self.f_vs_T_plot.set_y_label('Freq (Hz)')
 
         self.t_vs_time_plot = self.add_plot((2, 4, (1, 3)),
                                             limits=(-1, 0, 60, 130),
                                             visible=False)
         self.t_vs_time_lines = self.t_vs_time_plot.add_lines(X=[], Y=[])
+        self.t_vs_time_plot.set_y_label('Temperature (C)')
 
         self.f_vs_time_plot = self.add_plot((2, 4, (5, 7)),
                                             limits=(-1, 27000, 60, 29500),
                                             visible=False,
                                             sharex=self.t_vs_time_plot)
         self.f_vs_time_lines = self.f_vs_time_plot.add_lines(X=[], Y=[])
+        self.f_vs_time_plot.set_x_label('Time (min)')
+        self.f_vs_time_plot.set_y_label('Freq (Hz)')
 
         self.rzx_plot = self.add_plot((3, 4, (4, 4)), max_h_ticks=3)
         self.rzx_lines = self.rzx_plot.add_lines(X=[], Y=[])
+        self.rzx_plot.set_x_label('Freq (Hz)', side='top')
+        self.rzx_plot.set_y_label('Real(Z)', side='right')
 
         self.phi_plot = self.add_plot((3, 4, (8, 8)), max_h_ticks=3,
                                       sharex=self.rzx_plot)
         self.phi_lines = self.phi_plot.add_lines(X=[], Y=[])
+        self.phi_plot.set_y_label('Arg(Z)', side='right')
 
         self.nyq_plot = self.add_plot((3, 4, (12, 12)), max_h_ticks=3,
                                       aspect=glotlib.ASPECT_SQUARE)
         self.nyq_lines = self.nyq_plot.add_lines(X=[], Y=[])
+        self.nyq_plot.set_x_label('Real(Z)')
+        self.nyq_plot.set_y_label('-Imag(Z)', side='right')
 
         self.status_text = self.add_label((0.01, 0.01), '')
         self.pos_label = self.add_label((0.99, 0.01), '', anchor='SE')
@@ -83,34 +92,6 @@ class WATWindow(glotlib.Window, Delegate):
                 (self.f_vs_T_plot.bounds[2] - 0.01,
                  self.f_vs_T_plot.bounds[3] + 0.01),
                 '', anchor='SE')
-
-        x0 = (self.f_vs_T_plot.bounds[0] +
-              self.f_vs_T_plot.bounds[2] + 0.05) / 2
-        x1 = (self.nyq_plot.bounds[0] + self.nyq_plot.bounds[2] + 0.05) / 2
-        y0 = (self.nyq_plot.bounds[1] + self.nyq_plot.bounds[3] + 0.025) / 2
-        y1 = (self.phi_plot.bounds[1] + self.phi_plot.bounds[3] + 0.025) / 2
-        y2 = (self.rzx_plot.bounds[1] + self.rzx_plot.bounds[3] + 0.025) / 2
-        y3 = (self.t_vs_time_plot.bounds[1] +
-              self.t_vs_time_plot.bounds[3] + 0.025) / 2
-        y4 = (self.f_vs_time_plot.bounds[1] +
-              self.f_vs_time_plot.bounds[3] + 0.025) / 2
-        self.f_vs_t_labels = [
-            self.add_label((0.035, y1), 'Freq (Hz)', anchor='S',
-                           theta=math.pi/2),
-            self.add_label((x0, 0.03), 'Temperature (C)', anchor='S')
-        ]
-        self.f_t_vs_time_labels = [
-            self.add_label((0.035, y3), 'Temperature (C)', anchor='S',
-                           theta=math.pi/2, visible=False),
-            self.add_label((0.035, y4), 'Freq (Hz)', anchor='S',
-                           theta=math.pi/2, visible=False),
-            self.add_label((x0, 0.03), 'Time (min)', anchor='S', visible=False)
-        ]
-        self.add_label((x1, 0.96), 'Freq (Hz)', anchor='S')
-        self.add_label((0.96, y2), 'Real(Z)', anchor='N', theta=math.pi/2)
-        self.add_label((0.96, y1), 'Arg(Z)', anchor='N', theta=math.pi/2)
-        self.add_label((0.96, y0), '-Imag(Z)', anchor='N', theta=math.pi/2)
-        self.add_label((x1, 0.03), 'Real(Z)', anchor='S')
 
         glotlib.periodic(1, self.update_periodic)
 
@@ -131,19 +112,11 @@ class WATWindow(glotlib.Window, Delegate):
             self.f_vs_T_plot.hide()
             self.f_vs_time_plot.show()
             self.t_vs_time_plot.show()
-            for l in self.f_vs_t_labels:
-                l.hide()
-            for l in self.f_t_vs_time_labels:
-                l.show()
             self.view_mode = ViewMode.F_T_VS_TIME
         elif self.view_mode == ViewMode.F_T_VS_TIME:
             self.f_vs_T_plot.show()
             self.f_vs_time_plot.hide()
             self.t_vs_time_plot.hide()
-            for l in self.f_vs_t_labels:
-                l.show()
-            for l in self.f_t_vs_time_labels:
-                l.hide()
             self.view_mode = ViewMode.F_VS_T
 
     def default_zoom(self):
