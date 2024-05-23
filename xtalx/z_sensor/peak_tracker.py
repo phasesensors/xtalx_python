@@ -53,7 +53,8 @@ class Delegate:
 
 class PeakTracker:
     def __init__(self, tc, amplitude, f0, f1, search_df, nfreqs, search_time,
-                 sweep_time, settle_ms=2, delegate=Delegate()):
+                 sweep_time, settle_ms=2, delegate=Delegate(),
+                 enable_chirp=True):
         self.tc             = tc
         self.amplitude      = amplitude
         self.f0             = f0
@@ -66,10 +67,12 @@ class PeakTracker:
         self.sweep_time     = sweep_time
         self.settle_ms      = settle_ms
         self.delegate       = delegate
+        self.enable_chirp   = enable_chirp
         self.thread         = None
         self.thread_cond    = threading.Condition()
         self.thread_exc     = None
 
+        self.start_time_ns  = None
         self.t_timeout      = None
         self.hires_f_center = None
         self.hires_width    = None
@@ -77,6 +80,7 @@ class PeakTracker:
         self.min_w          = None
         self.sensor_ms      = None
         self.sweep          = 0
+        self.sweep_iter     = None
         self.sweep_t0_ns    = None
         self.state          = State.IDLE
         self.chirp_space    = np.linspace(CHIRP_F0, CHIRP_F1,
@@ -117,7 +121,10 @@ class PeakTracker:
         return fit
 
     def _start_full_search(self):
-        self._start_chirp()
+        if self.enable_chirp:
+            self._start_chirp()
+        else:
+            self._start_peak_search_defaults()
 
     def _start_chirp(self):
         '''
@@ -198,6 +205,12 @@ class PeakTracker:
         t1_ns = time.time_ns()
         dt_ms = round((t1_ns - t0_ns) / 1000000)
 
+        if (hires and fw_fit is not None and fw_fit.RR >= self.min_rr and
+                15000 <= fw_fit.peak_hz <= 35000):
+            self.sweep_iter += 1
+        else:
+            self.sweep_iter = 0
+
         self.delegate.sweep_callback(self.tc, self, self.sweep_t0_ns,
                                      self.sensor_ms + dt_ms, points, fw_fit,
                                      hires, temp_freq)
@@ -265,6 +278,7 @@ class PeakTracker:
 
     def start_async(self):
         assert self.state == State.IDLE
+        self.start_time_ns = time.time_ns()
         self._start_full_search()
 
     def stop_async(self):
@@ -303,6 +317,7 @@ class PeakTracker:
         try:
             with self.thread_cond:
                 if self.thread:
+                    self.start_time_ns = time.time_ns()
                     self._start_full_search()
                     while self.thread:
                         dt = self.poll()
