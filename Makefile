@@ -3,6 +3,8 @@ MODULE      := xtalx
 MODULE_VERS := 1.1.5
 MODULE_DEPS :=
 MODULES := \
+	setup.cfg \
+	setup.py \
 	xtalx/p_sensor/*.py \
 	xtalx/z_sensor/*.py \
 	xtalx/tools/config/*.py \
@@ -54,6 +56,6 @@ publish: all
 	python3 -m twine upload $(WHEEL_PATH) $(TGZ_PATH)
 
 
-$(WHEEL_PATH): setup.py setup.cfg $(MODULES)
 	python3 setup.py --quiet sdist bdist_wheel
 	python3 -m twine check $@
+$(WHEEL_PATH): $(MODULES) Makefile
