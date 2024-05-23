@@ -252,7 +252,7 @@ def main(args):
     else:
         csv = None
 
-    dev    = xtalx.z_sensor.find_one()
+    dev    = xtalx.z_sensor.find_one(serial_number=args.sensor)
     tc     = xtalx.z_sensor.make(dev, yield_Y=True)
     ww     = WATWindow(tc, csv)
     a      = tc.parse_amplitude(None)
@@ -273,6 +273,7 @@ def main(args):
 def _main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--output-csv', '-o')
+    parser.add_argument('--sensor', '-s')
     args = parser.parse_args()
     main(args)
 
