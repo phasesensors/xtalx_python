@@ -72,6 +72,7 @@ class PeakTracker:
         self.thread_cond    = threading.Condition()
         self.thread_exc     = None
 
+        self.start_time_ns  = None
         self.t_timeout      = None
         self.hires_f_center = None
         self.hires_width    = None
@@ -270,6 +271,7 @@ class PeakTracker:
 
     def start_async(self):
         assert self.state == State.IDLE
+        self.start_time_ns = time.time_ns()
         self._start_full_search()
 
     def stop_async(self):
@@ -308,6 +310,7 @@ class PeakTracker:
         try:
             with self.thread_cond:
                 if self.thread:
+                    self.start_time_ns = time.time_ns()
                     self._start_full_search()
                     while self.thread:
                         dt = self.poll()
