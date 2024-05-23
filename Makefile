@@ -14,6 +14,7 @@ MODULES := \
 	xtalx/tools/p_sensor/*.py \
 	xtalx/tools/usb/*.py \
 	xtalx/tools/z_sensor/*.py
+PYTHON := python3
 
 FLAKE_MODULES := xtalx
 LINT_MODULES  := xtalx
@@ -34,7 +35,7 @@ test: flake8 lint
 
 .PHONY: flake8
 flake8:
-	python3 -m flake8 $(FLAKE_MODULES)
+	$(PYTHON) -m flake8 $(FLAKE_MODULES)
 
 .PHONY: lint
 lint:
@@ -42,20 +43,19 @@ lint:
 
 .PHONY: install
 install: $(WHEEL_PATH) | uninstall
-	sudo python3 -m pip install $(WHEEL_PATH)
+	sudo $(PYTHON) -m pip install $(WHEEL_PATH)
 
 .PHONY: uninstall
 uninstall:
-	sudo python3 -m pip uninstall -y $(MODULE)
+	sudo $(PYTHON) -m pip uninstall -y $(MODULE)
 
 .PHONY: packages
 packages: $(WHEEL_PATH)
 
 .PHONY: publish
 publish: all
-	python3 -m twine upload $(WHEEL_PATH) $(TGZ_PATH)
+	$(PYTHON) -m twine upload $(WHEEL_PATH) $(TGZ_PATH)
 
-
-	python3 setup.py --quiet sdist bdist_wheel
-	python3 -m twine check $@
 $(WHEEL_PATH): $(MODULES) Makefile
+	$(PYTHON) -m build
+	$(PYTHON) -m twine check $@
