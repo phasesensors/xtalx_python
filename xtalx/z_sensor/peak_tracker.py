@@ -80,6 +80,7 @@ class PeakTracker:
         self.min_w          = None
         self.sensor_ms      = None
         self.sweep          = 0
+        self.sweep_iter     = None
         self.sweep_t0_ns    = None
         self.state          = State.IDLE
         self.chirp_space    = np.linspace(CHIRP_F0, CHIRP_F1,
@@ -203,6 +204,12 @@ class PeakTracker:
 
         t1_ns = time.time_ns()
         dt_ms = round((t1_ns - t0_ns) / 1000000)
+
+        if (hires and fw_fit is not None and fw_fit.RR >= self.min_rr and
+                15000 <= fw_fit.peak_hz <= 35000):
+            self.sweep_iter += 1
+        else:
+            self.sweep_iter = 0
 
         self.delegate.sweep_callback(self.tc, self, self.sweep_t0_ns,
                                      self.sensor_ms + dt_ms, points, fw_fit,
