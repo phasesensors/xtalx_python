@@ -135,6 +135,7 @@ class PeakTracker:
                                     round(self.tc.a_to_dac(CHIRP_A)))
         self._transition(State.CHIRP_WAIT_DATA)
         self.t_timeout = time.time() + CHIRP_DT
+        self.sweep_iter = 0
 
     def _start_peak_search(self, min_f, max_f, df):
         '''
