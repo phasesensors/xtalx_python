@@ -53,7 +53,8 @@ class Delegate:
 
 class PeakTracker:
     def __init__(self, tc, amplitude, f0, f1, search_df, nfreqs, search_time,
-                 sweep_time, settle_ms=2, delegate=Delegate()):
+                 sweep_time, settle_ms=2, delegate=Delegate(),
+                 enable_chirp=True):
         self.tc             = tc
         self.amplitude      = amplitude
         self.f0             = f0
@@ -66,6 +67,7 @@ class PeakTracker:
         self.sweep_time     = sweep_time
         self.settle_ms      = settle_ms
         self.delegate       = delegate
+        self.enable_chirp   = enable_chirp
         self.thread         = None
         self.thread_cond    = threading.Condition()
         self.thread_exc     = None
@@ -117,7 +119,10 @@ class PeakTracker:
         return fit
 
     def _start_full_search(self):
-        self._start_chirp()
+        if self.enable_chirp:
+            self._start_chirp()
+        else:
+            self._start_peak_search_defaults()
 
     def _start_chirp(self):
         '''
