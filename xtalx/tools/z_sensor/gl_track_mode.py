@@ -87,45 +87,53 @@ class TrackerWindow(glotlib.Window, Delegate):
         self.d_plot = self.add_plot(
             511, limits=(-0.1, -0.05, 50, 1.05), max_v_ticks=4)
         self.d_lines = self.d_plot.add_lines([], width=LINE_WIDTH)
+        self.d_plot.set_y_label('Density (g/mL)')
 
         self.v_plot = self.add_plot(
             512, limits=(-0.1, -0.5, 50, 30.5), max_v_ticks=4,
             sharex=self.d_plot)
         self.v_lines = self.v_plot.add_lines([], width=LINE_WIDTH)
+        self.v_plot.set_y_label('Viscosity (cP)')
 
         t_lim = (262000, 262600) if tc.ginfo.have_temp_cal() else (-40, 200)
         self.t_plot = self.add_plot(
             513, limits=(-0.1, t_lim[0], 50, t_lim[1]), max_v_ticks=4,
             sharex=self.d_plot)
         self.t_lines = self.t_plot.add_lines([], width=LINE_WIDTH)
+        self.t_plot.set_y_label('Temperature (C)')
 
         self.fc_plot = self.add_plot(
             (5, 8, (25, 27)),
             limits=(-0.1, z_args.f_min, 50, z_args.f_max),
             max_v_ticks=4, sharex=self.d_plot)
         self.fc_lines = self.fc_plot.add_lines([], width=LINE_WIDTH)
+        self.fc_plot.set_y_label('Frequency (Hz)')
 
         self.w_plot = self.add_plot(
             (5, 8, (28, 30)), limits=(-0.1, 0, 50, 100), max_v_ticks=4,
             sharex=self.d_plot)
         self.w_lines = self.w_plot.add_lines([], width=LINE_WIDTH)
+        self.w_plot.set_y_label('Width (Hz)')
 
         self.zx_plot = self.add_plot(
             (5, 4, 17), limits=(z_args.f_min, -1, z_args.f_max, 1),
             max_h_ticks=4, max_v_ticks=4)
         self.zx_lines = self._make_lines(self.zx_plot)
+        self.zx_plot.set_y_label('|Z| (Ohms)')
 
         self.phi_plot = self.add_plot(
             (5, 4, 18),
             limits=(z_args.f_min, -math.pi, z_args.f_max, math.pi),
             max_h_ticks=4, max_v_ticks=4, sharex=self.zx_plot)
         self.phi_lines = self._make_lines(self.phi_plot)
+        self.phi_plot.set_y_label('arg(Z) (radians)')
 
         self.rzx_plot = self.add_plot(
             (5, 4, 19), limits=(z_args.f_min, -1, z_args.f_max, 1),
             max_h_ticks=4, max_v_ticks=4, sharex=self.zx_plot)
         self.rzx_lines = self._make_lines(self.rzx_plot)
         self.rzx_lines[0].point_width = 3
+        self.rzx_plot.set_y_label('Real(Z) (radians)')
 
         self.chirp_plot = self.add_plot(
             (5, 4, (17, 19)), limits=(15000, 0, 40000, 0.01),
