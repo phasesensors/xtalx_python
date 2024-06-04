@@ -12,6 +12,7 @@ MODULES := \
 	xtalx/tools/influxdb/*.py \
 	xtalx/tools/math/*.py \
 	xtalx/tools/p_sensor/*.py \
+	xtalx/tools/serial/*.py \
 	xtalx/tools/usb/*.py \
 	xtalx/tools/z_sensor/*.py
 PYTHON := python3
