@@ -59,7 +59,11 @@ def sample_continuous(x, csv_file):
 
 
 def main(args):
-    d = xtalx.p_sensor.find_one_xti(serial_number=args.serial_number)
+    if args.xhti_intf:
+        x = xtalx.p_sensor.XHTI(args.xhti_intf)
+    else:
+        d = xtalx.p_sensor.find_one_xti(serial_number=args.serial_number)
+        x = xtalx.p_sensor.make(d)
 
     if args.csv_file:
         csv_file = open(  # pylint: disable=R1732
@@ -79,7 +83,6 @@ def main(args):
     else:
         csv_file = None
 
-    x = xtalx.p_sensor.make(d)
     if args.sample_period:
         sample_gated(x, csv_file, args.sample_period)
     else:
@@ -89,6 +92,7 @@ def main(args):
 def _main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--serial-number', '-s')
+    parser.add_argument('--xhti-intf')
     parser.add_argument('--csv-file')
     parser.add_argument('--sample-period', type=float)
     try:
