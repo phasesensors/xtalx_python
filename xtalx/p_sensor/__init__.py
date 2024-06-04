@@ -24,4 +24,5 @@ def make(usb_dev, **kwargs):
 __all__ = ['find_xti',
            'find_one_xti',
            'make',
+           'XTI',
            ]
