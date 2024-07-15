@@ -69,6 +69,25 @@ class StartCalPayload(btype.Struct):
     _EXPECTED_SIZE  = 8
 
 
+class EvalFreqsPayload(btype.Struct):
+    temp_hz         = btype.float64_t()
+    center_hz       = btype.float64_t()
+    width_hz        = btype.float64_t()
+    _EXPECTED_SIZE  = 24
+
+
+class EvalFreqsResponse(btype.Struct):
+    opcode                  = btype.uint16_t()
+    tag                     = btype.uint16_t()
+    status                  = btype.uint32_t()
+    flags                   = btype.uint32_t()
+    rsrv                    = btype.uint32_t()
+    temp_c                  = btype.float64_t()
+    density_g_per_ml        = btype.float64_t()
+    viscosity_cp            = btype.float64_t()
+    _EXPECTED_SIZE          = 40
+
+
 class Status(IntEnum):
     OK              = 0
     BAD_OPCODE      = 1
@@ -101,6 +120,7 @@ class Opcode(IntEnum):
     SET_T_ENABLE    = 8
     READ_TEMP       = 9
     FIT_POINTS      = 10
+    EVAL_FREQS      = 14
     GEN_HIRES_FREQS = 15
     GET_EINFO       = 16
     AUTO_CHIRP      = 17
@@ -653,6 +673,25 @@ class TCSC(TinCan):
     def read_temp(self):
         rsp = self._exec_command(Opcode.READ_TEMP, b'', cls=ReadTempResponse)
         return rsp.osc_ticks, rsp.cpu_ticks
+
+    def eval_freqs(self, temp_hz, center_hz, width_hz):
+        '''
+        Get the sensor to manually convert a set of frequencies into
+        temperature, density and viscosity values.  To only convert
+        temperature, set center_hz=0 and width_hz=0.
+        '''
+        params = EvalFreqsPayload(temp_hz=temp_hz, center_hz=center_hz,
+                                  width_hz=width_hz).pack()
+        rsp    = self._exec_command(Opcode.EVAL_FREQS, params,
+                                    cls=EvalFreqsResponse)
+        temp_c = rsp.temp_c if rsp.flags & 1 else None
+        if center_hz and width_hz:
+            density_g_per_ml = rsp.density_g_per_ml if rsp.flags & 2 else None
+            viscosity_cp     = rsp.viscosity_cp if rsp.flags & 4 else None
+        else:
+            density_g_per_ml = None
+            viscosity_cp     = None
+        return (temp_c, density_g_per_ml, viscosity_cp)
 
     def gen_hires_freqs(self, f0, width, N):
         '''
