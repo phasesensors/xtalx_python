@@ -667,6 +667,10 @@ class TCSC(TinCan):
             StartCalPayload(sigout=sigout, bias=bias).pack())
 
     def set_t_enable(self, enabled):
+        '''
+        Enable or disable the temperature oscillators to reduce noise on the
+        density/viscosity measurement.
+        '''
         params = SetTEnablePayload(enabled=enabled).pack()
         self._exec_command(Opcode.SET_T_ENABLE, params)
 
