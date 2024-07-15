@@ -63,6 +63,12 @@ class AutoChirpResult:
         self.bins      = bins / hdr.nchirps
 
 
+class StartCalPayload(btype.Struct):
+    sigout          = btype.uint32_t()
+    bias            = btype.uint32_t()
+    _EXPECTED_SIZE  = 8
+
+
 class Status(IntEnum):
     OK              = 0
     BAD_OPCODE      = 1
@@ -91,6 +97,7 @@ class Opcode(IntEnum):
     GET_INFO        = 1
     START_SCOPER    = 2
     START_SWEEPER   = 4
+    START_FIXED_OUT = 6
     SET_T_ENABLE    = 8
     READ_TEMP       = 9
     FIT_POINTS      = 10
@@ -627,6 +634,17 @@ class TCSC(TinCan):
         t1 = time.time_ns()
 
         return SweepFit(rsp, t1 - t0, temp_hz)
+
+    def start_fixed_out(self, sigout, bias):
+        '''
+        Generate a fixed voltage output, setting the output op-amp's positive
+        input to bias and negative input to sigout.  This is typically used
+        for calibration purposes, but setting sigout=0 and bias=0 can also be
+        used to quiesece the sensor by grounding the output.
+        '''
+        return self._exec_command(
+            Opcode.START_FIXED_OUT,
+            StartCalPayload(sigout=sigout, bias=bias).pack())
 
     def set_t_enable(self, enabled):
         params = SetTEnablePayload(enabled=enabled).pack()
