@@ -47,7 +47,7 @@ class Delegate:
         pass
 
     def sweep_callback(self, tc, pt, t0_ns, duration_ms, points, fw_fit, hires,
-                       temp_freq):
+                       temp_freq, temp_c):
         pass
 
 
@@ -113,12 +113,13 @@ class PeakTracker:
 
     def _get_sweep_fit(self, temp_hz):
         fit = self.tc.get_sweep_fit(temp_hz)
+        temp_c = fit.temp_c
         if not 1 <= fit.status <= 4:
             self.tc.warn('FwFit failed: %s s status %d niter %d' %
                          (fit.dt / 1e9, fit.status, fit.niter))
             fit = None
 
-        return fit
+        return fit, temp_c
 
     def _start_full_search(self):
         if self.enable_chirp:
@@ -199,9 +200,9 @@ class PeakTracker:
 
         t0_ns = time.time_ns()
 
-        temp_freq = self._get_temp_freq()
-        fw_fit    = self._get_sweep_fit(temp_freq)
-        hires     = (self.state == State.HIRES_SWEEP_WAIT_DATA)
+        temp_freq      = self._get_temp_freq()
+        fw_fit, temp_c = self._get_sweep_fit(temp_freq)
+        hires          = (self.state == State.HIRES_SWEEP_WAIT_DATA)
 
         t1_ns = time.time_ns()
         dt_ms = round((t1_ns - t0_ns) / 1000000)
@@ -214,7 +215,7 @@ class PeakTracker:
 
         self.delegate.sweep_callback(self.tc, self, self.sweep_t0_ns,
                                      self.sensor_ms + dt_ms, points, fw_fit,
-                                     hires, temp_freq)
+                                     hires, temp_freq, temp_c)
         self.sweep += 1
 
         if self.state == State.IDLE:

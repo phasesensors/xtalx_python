@@ -200,7 +200,7 @@ class WATWindow(glotlib.Window, Delegate):
             self.mark_dirty()
 
     def sweep_callback(self, _tc, pt, t0_ns, duration_ms, points, fw_fit,
-                       hires, _temp_freq):
+                       hires, _temp_freq, _temp_c):
         with self.data_lock:
             if pt.sweep_iter > 1:
                 fw_fit._gl_time_ns  = t0_ns + duration_ms * 1000

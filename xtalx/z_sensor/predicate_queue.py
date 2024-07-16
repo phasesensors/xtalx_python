@@ -22,12 +22,13 @@ class State(enum.Enum):
 
 
 class Measurement:
-    def __init__(self, t0_ns, duration_ms, points, fw_fit, temp_freq):
+    def __init__(self, t0_ns, duration_ms, points, fw_fit, temp_freq, temp_c):
         self.t0_ns            = t0_ns
         self.duration_ms      = duration_ms
         self.points           = points
         self.fw_fit           = fw_fit
         self.temp_freq        = temp_freq
+        self.temp_c           = temp_c
         if fw_fit:
             self.peak_hz          = fw_fit.peak_hz
             self.peak_fwhm        = fw_fit.peak_fwhm
@@ -58,12 +59,12 @@ class PredicateQueue(Delegate):
             self.delegate.chirp_callback(*args)
 
     def sweep_callback(self, tc, pt, t0_ns, duration_ms, points, fw_fit, hires,
-                       temp_freq):
+                       temp_freq, temp_c):
         if self.delegate:
             self.delegate.sweep_callback(tc, pt, t0_ns, duration_ms, points,
-                                         fw_fit, hires, temp_freq)
+                                         fw_fit, hires, temp_freq, temp_c)
 
-        m = Measurement(t0_ns, duration_ms, points, fw_fit, temp_freq)
+        m = Measurement(t0_ns, duration_ms, points, fw_fit, temp_freq, temp_c)
 
         with self.queue_cond:
             if not hires:
