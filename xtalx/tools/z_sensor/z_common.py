@@ -74,16 +74,17 @@ class ZLogger:
         else:
             tc.log('c', 'i %u' % nchirps)
 
-    def log_sweep(self, tc, pt, t0_ns, points, fw_fit, hires, temp_freq):
+    def log_sweep(self, tc, pt, t0_ns, points, fw_fit, hires, temp_freq,
+                  temp_c):
         tag = 'H' if hires else 'S'
         f0  = points[0].f
         f1  = points[-1].f
         if fw_fit is None:
-            T, D, V = temp_freq, None, None
-            tc.log(tag, 'i %u f0 %f f1 %f T %s D %s V %s' %
-                   (pt.sweep, f0, f1, T, D, V))
+            T, D, V = temp_c, None, None
+            tc.log(tag, 'i %u f0 %f f1 %f temp_hz %s T %s D %s V %s' %
+                   (pt.sweep, f0, f1, temp_freq, T, D, V))
         else:
-            T = fw_fit.temp_c
+            T = temp_c
             D = fw_fit.density_g_per_ml
             V = fw_fit.viscosity_cp
             tc.log(tag, 'i %u f0 %f f1 %f peak_hz %.3f peak_fwhm %.3f S %.2f '
@@ -128,8 +129,9 @@ class ZDelegate(xtalx.z_sensor.peak_tracker.Delegate):
         self.z_logger.log_chirp(tc, n, lf)
 
     def sweep_callback(self, tc, pt, t0_ns, _duration_ms, points, fw_fit,
-                       hires, temp_freq):
-        self.z_logger.log_sweep(tc, pt, t0_ns, points, fw_fit, hires, temp_freq)
+                       hires, temp_freq, temp_c):
+        self.z_logger.log_sweep(tc, pt, t0_ns, points, fw_fit, hires, temp_freq,
+                                temp_c)
 
 
 def parse_config(rv):

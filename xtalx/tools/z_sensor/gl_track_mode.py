@@ -398,9 +398,9 @@ class TrackerWindow(glotlib.Window, Delegate):
             self.mark_dirty()
 
     def sweep_callback(self, tc, pt, t0_ns, duration_ms, points, fw_fit, hires,
-                       temp_freq):
+                       temp_freq, temp_c):
         T, D, V = self.z_logger.log_sweep(tc, pt, t0_ns, points, fw_fit, hires,
-                                          temp_freq)
+                                          temp_freq, temp_c)
         self.data_callback(pt.sweep, fw_fit, points, T, D, V, hires)
 
         if self.ipq:
