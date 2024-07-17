@@ -10,8 +10,10 @@ import numpy as np
 from xtalx.tools.math import Lorentzian
 
 
-CHIRP_F0     = 15000
-CHIRP_F1     = 35000
+CHIRP_RANGES = {
+    32768 : (28000, 33500),
+    20000 : (15000, 21000),
+}
 CHIRP_A      = 0.25
 CHIRP_MS     = 105
 CHIRP_DT     = CHIRP_MS * 0.001 * 2 + 0.02
@@ -83,8 +85,12 @@ class PeakTracker:
         self.sweep_iter     = None
         self.sweep_t0_ns    = None
         self.state          = State.IDLE
-        self.chirp_space    = np.linspace(CHIRP_F0, CHIRP_F1,
-                                          int(CHIRP_F1 - CHIRP_F0))
+        self.chirp_range    = CHIRP_RANGES.get(tc.ginfo.dv_nominal_hz,
+                                               (28000, 33500))
+        self.chirp_space    = np.linspace(self.chirp_range[0],
+                                          self.chirp_range[1],
+                                          int(self.chirp_range[1] -
+                                              self.chirp_range[0]))
 
     def _transition(self, new_state):
         if self.state == new_state:
@@ -131,8 +137,9 @@ class PeakTracker:
         '''
         Start chirping and refine the data as it comes in.
         '''
-        self.tc.info('Chirping from %f to %f...' % (CHIRP_F0, CHIRP_F1))
-        self.tc.send_auto_chirp_cmd(CHIRP_F0, CHIRP_F1,
+        self.tc.info('Chirping from %f to %f...' % (self.chirp_space[0],
+                                                    self.chirp_space[-1]))
+        self.tc.send_auto_chirp_cmd(self.chirp_space[0], self.chirp_space[-1],
                                     round(self.tc.a_to_dac(CHIRP_A)))
         self._transition(State.CHIRP_WAIT_DATA)
         self.t_timeout = time.time() + CHIRP_DT
@@ -262,7 +269,8 @@ class PeakTracker:
 
         self.tc._synchronize()
 
-        if lf and lf.RR >= CHIRP_MIN_RR and CHIRP_F0 <= lf.x0 <= CHIRP_F1:
+        if (lf and lf.RR >= CHIRP_MIN_RR and
+                self.chirp_space[0] <= lf.x0 <= self.chirp_space[-1]):
             strength = lf.A / (math.pi * lf.W)
             self.tc.info('Chirp succeeded: peak_hz %s peak_fwhm %s '
                          'strength %.2f RR %.5f' %
