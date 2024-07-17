@@ -22,7 +22,7 @@ def print_info_tcsc_u5(tc2):
     print('DV Nominal Freq: %u Hz' % tc2.ginfo.dv_nominal_hz)
     print('    Max cmd len: %u' % tc2.ginfo.cmd_buf_len)
     print('       # resets: %u' % tc2.ginfo.nresets)
-    print('     Drive Type: %s' % tc2.ginfo.drive_type)
+    print('     Drive Type: %s' % tc2.ginfo.get_drive_type())
     print('   Reset Reason: %s' % tc2.ginfo.reset_reason)
     print('      Reset CSR: 0x%08X' % tc2.ginfo.reset_csr)
     print('      Reset SR1: 0x%08X' % tc2.ginfo.reset_sr1)
