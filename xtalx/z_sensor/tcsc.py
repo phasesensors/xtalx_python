@@ -133,6 +133,13 @@ class DriveType(IntEnum):
     INTERNAL_DRIVE = 2
 
 
+DRIVE_TYPE_MAP = {
+    DriveType.UNKNOWN_DRIVE  : 'Unknwon',
+    DriveType.EXTERNAL_DRIVE : 'External',
+    DriveType.INTERNAL_DRIVE : 'Internal',
+}
+
+
 class ResetReason(IntEnum):
     UNKNOWN         = 0
     POWER_ON_RESET  = 1
@@ -218,6 +225,9 @@ class GetInfoResponse:
 
     def have_temp_cal(self):
         return self.cal_params & (1 << 0)
+
+    def get_drive_type(self):
+        return DRIVE_TYPE_MAP.get(self.drive_type, 'Really Unknown')
 
 
 class GetEInfoResponse(btype.Struct):
