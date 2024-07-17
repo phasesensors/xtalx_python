@@ -2,6 +2,7 @@
 import xtalx.tools.usb
 
 from .xti import XTI
+from .xhti import XHTI
 
 
 def find_xti(**kwargs):
@@ -24,4 +25,6 @@ def make(usb_dev, **kwargs):
 __all__ = ['find_xti',
            'find_one_xti',
            'make',
+           'XHTI',
+           'XTI',
            ]

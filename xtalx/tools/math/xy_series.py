@@ -43,6 +43,13 @@ class XYSeries:
             return area / (x1 - x0)
         return None
 
+    def interpolate(self, x):
+        '''
+        Given an X value, interpolate what the Y value would be.  The X value
+        is clipped to the range of the series.
+        '''
+        return np.interp(x, self.X, self.Y)
+
     def append(self, x, y):
         self.X = np.append(self.X, x)
         self.Y = np.append(self.Y, y)
