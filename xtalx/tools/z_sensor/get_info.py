@@ -19,6 +19,7 @@ def print_info_tcsc_u5(tc2):
     print('           DCLK: %u' % tc2.ginfo.dclk)
     print('           ACLK: %u' % tc2.ginfo.aclk)
     print('            HSE: %u MHz' % tc2.ginfo.f_hs_mhz)
+    print('DV Nominal Freq: %u Hz' % tc2.ginfo.dv_nominal_hz)
     print('    Max cmd len: %u' % tc2.ginfo.cmd_buf_len)
     print('       # resets: %u' % tc2.ginfo.nresets)
     print('     Drive Type: %s' % tc2.ginfo.drive_type)
