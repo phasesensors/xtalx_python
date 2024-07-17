@@ -189,13 +189,12 @@ class Response(btype.Struct):
 
 
 class GetInfoResponse:
-    def __init__(self, rsp):
+    def __init__(self, rsp, tc):
         self.hclk                 = rsp.params[0]
         self.dclk_divisor         = rsp.params[1] >> 16
         self.aclk_divisor         = rsp.params[1] & 0xFFFF
         self.cmd_buf_len          = rsp.params[2] >> 10
         self.f_hs_mhz             = rsp.params[2] & 0x03FF
-        self.nresets              = rsp.params[3]
         self.dclk                 = self.hclk / self.dclk_divisor
         self.aclk                 = self.hclk / self.aclk_divisor
         self.drive_type           = DriveType(rsp.params[4] & 0xFF)
@@ -209,6 +208,13 @@ class GetInfoResponse:
         self.crystal_cal_date     = rsp.params[9]
         self.air_f0               = rsp.params[10] / 1000
         self.air_fwhm             = rsp.params[11] / 1000
+
+        if tc.fw_version < 0x106:
+            self.nresets       = rsp.params[3]
+            self.dv_nominal_hz = 32768
+        else:
+            self.nresets       = (rsp.params[3] >> 24) & 0xFF
+            self.dv_nominal_hz = rsp.params[3] & 0xFFFFFF
 
     def have_temp_cal(self):
         return self.cal_params & (1 << 0)
@@ -453,7 +459,7 @@ class TCSC(TinCan):
         return self._recv_response(tag, timeout, cls=cls)
 
     def _get_info(self):
-        return GetInfoResponse(self._exec_command(Opcode.GET_INFO))
+        return GetInfoResponse(self._exec_command(Opcode.GET_INFO), self)
 
     def _get_einfo(self):
         return self._exec_command(Opcode.GET_EINFO, cls=GetEInfoResponse)
