@@ -15,12 +15,10 @@ class SearchParams:
         self.df   = df
 
 
-SEARCH_PARAMS = [
-    SearchParams('Fluid',  20000, 35000, 50),
-    SearchParams('Gas',    29000, 33000, 5),
-    SearchParams('Vacuum', 32700, 32900, 1),
-]
-SEARCH_PARAMS_DICT = {sp.name : sp for sp in SEARCH_PARAMS}
+SEARCH_PARAMS = {
+    32768 : (20000, 35000, 50),
+    20000 : (18000, 21000, 10),
+}
 
 
 class ZArgs:
@@ -150,15 +148,6 @@ def parse_config(rv):
 
 
 def parse_args(tc, rv):
-    if rv.freq_0 is not None or rv.freq_1 is not None:
-        if rv.freq_0 is None or rv.freq_1 is None:
-            raise Exception('Most specify neither or both of --freq-0, '
-                            '--freq-1')
-        SEARCH_PARAMS.insert(0, SearchParams('%s - %s' % (rv.freq_0, rv.freq_1),
-                                             float(rv.freq_0), float(rv.freq_1),
-                                             rv.df or 1))
-        SEARCH_PARAMS_DICT[SEARCH_PARAMS[0].name] = SEARCH_PARAMS[0]
-
     if tc.yield_Y:
         tc.info('Tracking admittance.')
     else:
@@ -174,9 +163,15 @@ def parse_args(tc, rv):
     if not 0 <= amplitude <= 2000:
         raise Exception('Amplitude not in range 0 to 2000.')
 
-    f0 = SEARCH_PARAMS[0].f0
-    f1 = SEARCH_PARAMS[0].f1
-    df = SEARCH_PARAMS[0].df
+    if rv.freq_0 is not None or rv.freq_1 is not None:
+        if rv.freq_0 is None or rv.freq_1 is None:
+            raise Exception('Most specify neither or both of --freq-0, '
+                            '--freq-1')
+        f0 = float(rv.freq_0)
+        f1 = float(rv.freq_1)
+        df = rv.df or 1
+    else:
+        f0, f1, df = SEARCH_PARAMS[tc.ginfo.dv_nominal_hz]
 
     return (ZArgs(amplitude, f0, f1, df, rv.nfreqs, rv.search_time_secs,
                   rv.sweep_time_secs, rv.settle_ms),
