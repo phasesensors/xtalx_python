@@ -7,7 +7,7 @@ import xtalx.p_sensor
 
 def main(args):
     d = xtalx.p_sensor.find_one_xti(serial_number=args.serial_number)
-    x = xtalx.p_sensor.make(d)
+    x = xtalx.p_sensor.make_xti(d)
     while True:
         m = x.read_measurement()
         print(m.tostring(args.verbose))

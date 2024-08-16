@@ -15,6 +15,13 @@ def find_one_xti(**kwargs):
                                     product='XtalX', find_all=True, **kwargs)
 
 
+def make_xti(usb_dev, **kwargs):
+    if usb_dev.product == 'XtalX':
+        return XTI(usb_dev, **kwargs)
+
+    raise Exception('Unrecognized product string: %s' % usb_dev.product)
+
+
 def make(usb_dev, **kwargs):
     if usb_dev.product == 'XtalX':
         return XTI(usb_dev, **kwargs)
@@ -24,6 +31,7 @@ def make(usb_dev, **kwargs):
 
 __all__ = ['find_xti',
            'find_one_xti',
+           'make_xti',
            'make',
            'XTI',
            'XHTI',

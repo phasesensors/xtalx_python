@@ -63,7 +63,7 @@ def main(args):
         x = xtalx.p_sensor.XHTI(args.xhti_intf)
     else:
         d = xtalx.p_sensor.find_one_xti(serial_number=args.serial_number)
-        x = xtalx.p_sensor.make(d)
+        x = xtalx.p_sensor.make_xti(d)
 
     if args.csv_file:
         csv_file = open(  # pylint: disable=R1732
