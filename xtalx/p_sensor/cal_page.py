@@ -15,6 +15,19 @@ CAL_F0_COMP_STANDARD    = (1 << 3)
 CAL_F0_REPORT_ID        = (1 << 4)
 CAL_F0_OSC_STARTUP_MS   = (1 << 5)
 
+CAL_FEATURES = [{CAL_F0_REFCLK         : 'MCU refclk',
+                 CAL_F0_POLY_PSI       : 'PSI polynomial',
+                 CAL_F0_POLY_TEMP      : 'Temperature polynomial',
+                 CAL_F0_COMP_STANDARD  : 'Standard Comparators',
+                 CAL_F0_REPORT_ID      : 'XtalxDB Calibration Report ID',
+                 CAL_F0_OSC_STARTUP_MS : 'Oscillator startup period in ms',
+                 },
+                {},
+                {},
+                {},
+                {},
+                ]
+
 CAL_SIG = 0x4C414358
 
 
