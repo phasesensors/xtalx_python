@@ -17,4 +17,5 @@ disable=missing-module-docstring,
         import-outside-toplevel,
         broad-exception-raised,
         superfluous-parens,
-        consider-using-f-string
+        consider-using-f-string,
+        too-many-return-statements
