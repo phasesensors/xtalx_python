@@ -1,8 +1,8 @@
 # Copyright (c) 2020-2023 by Phase Advanced Sensor Systems Corp.
 import xtalx.tools.usb
 
-from .xti import XTI
 from .xhti import XHTI
+from .xti import XTI
 
 
 def find_xti(**kwargs):
@@ -25,6 +25,6 @@ def make(usb_dev, **kwargs):
 __all__ = ['find_xti',
            'find_one_xti',
            'make',
-           'XHTI',
            'XTI',
+           'XHTI',
            ]
