@@ -17,7 +17,7 @@ def main(args):
     VERBOSE = args.verbose
 
     d = xtalx.p_sensor.find_one_xti(serial_number=args.serial_number)
-    x = xtalx.p_sensor.make(d)
+    x = xtalx.p_sensor.make_xti(d)
     x.read_measurements(xtalx_cb)
     try:
         x.join_read()

@@ -1,20 +1,10 @@
 # Copyright (c) 2022-2024 by Phase Advanced Sensor Systems, Inc.
 # All rights reserved.
 import time
-from struct import unpack
 
-from xtalx.tools.math import PolynomialFit1D, PolynomialFit2D
+from xtalx.tools.math import PolynomialFit1D, PolynomialFit2D, hex_s_to_double
 
 import xtalx.tools.serial
-
-
-def hex_to_double(h):
-    '''
-    Converts a 64-bit value encoded as a hex string into a floating-point
-    double value.
-    '''
-    h = bytes([int(h[i:i+2], 16) for i in range(14, -2, -2)])
-    return unpack('<d', h)[0]
 
 
 class XHTICommandException(Exception):
@@ -312,14 +302,14 @@ class XHTI:
         assert len(lines) >= 3
         order    = len(lines) - 3
         words    = lines[0].split(b',')
-        x_domain = (hex_to_double(words[0]), hex_to_double(words[1]))
+        x_domain = (hex_s_to_double(words[0]), hex_s_to_double(words[1]))
         words    = lines[1].split(b',')
-        y_domain = (hex_to_double(words[0]), hex_to_double(words[1]))
+        y_domain = (hex_s_to_double(words[0]), hex_s_to_double(words[1]))
         coefs    = []
         for i in range(order + 1):
             words = lines[2 + i].split(b',')
             assert len(words) == order + 1
-            coefs = coefs + [hex_to_double(w) for w in words]
+            coefs = coefs + [hex_s_to_double(w) for w in words]
         return PolynomialFit2D.from_domain_coefs(x_domain, y_domain, coefs)
 
     def read_temperature_polynomial(self):
@@ -330,9 +320,9 @@ class XHTI:
 
         assert len(lines) == 2
         words    = lines[0].split(b',')
-        x_domain = (hex_to_double(words[0]), hex_to_double(words[1]))
+        x_domain = (hex_s_to_double(words[0]), hex_s_to_double(words[1]))
         words    = lines[1].split(b',')
-        coefs    = [hex_to_double(w) for w in words]
+        coefs    = [hex_s_to_double(w) for w in words]
         return PolynomialFit1D.from_domain_coefs(x_domain, coefs)
 
     def yield_measurements(self):
