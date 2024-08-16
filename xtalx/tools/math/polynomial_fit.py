@@ -11,6 +11,13 @@ class PolynomialFit1D:
 
     @staticmethod
     def from_domain_coefs(x_domain, coefs):
+        '''
+        Given the x_domain and a list of coefficients of the form:
+
+            [x0, x1, x2, ..., xN]
+
+        generate the fit polynomial for evaluation purposes.
+        '''
         order = len(coefs) - 1
         pf    = numpy.polynomial.polynomial.Polynomial(coefs, domain=x_domain)
         return PolynomialFit1D(order, pf)
