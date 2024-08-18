@@ -8,8 +8,54 @@ import btype
 from .hex_funcs import hex_to_double
 
 
+SUPERSCRIPT = [
+    '\u2070',
+    '\u00B9',
+    '\u00B2',
+    '\u00B3',
+    '\u2074',
+    '\u2075',
+    '\u2076',
+    '\u2077',
+    '\u2078',
+    '\u2079',
+    ]
+
+SUBSCRIPT = [
+    '\u2080',
+    '\u2081',
+    '\u2082',
+    '\u2083',
+    '\u2084',
+    '\u2085',
+    '\u2086',
+    '\u2087',
+    '\u2088',
+    '\u2089',
+    ]
+
 TYPE_TABLE = {}
 TYPE_TABLE_DOUBLE = {}
+
+
+def number_script(v, script_array):
+    assert isinstance(v, int)
+
+    v = str(v)
+    s = ''
+    for c in v:
+        s += script_array[ord(c) - 48]
+    return s
+
+
+def superscript(v):
+    if v == 1:
+        return ''
+    return number_script(v, SUPERSCRIPT)
+
+
+def subscript(v):
+    return number_script(v, SUBSCRIPT)
 
 
 class PolyWindow(btype.Struct):
@@ -64,6 +110,19 @@ class PolynomialFit1D:
     def __call__(self, x):
         return self.pf(x)
 
+    @staticmethod
+    def _polystr(coef):
+        s      = '%.5f' % coef[0]
+        for i, c in enumerate(coef[1:]):
+            s += ' + %.5f*x%s' % (c, superscript(i + 1))
+        return s
+
+    def __repr__(self):
+        s = PolynomialFit1D._polystr(self.pf.coef)
+        s += '\n : x(%s, %s) -> [-1. 1.]' % (float(self.pf.domain[0]),
+                                             float(self.pf.domain[1]))
+        return s
+
 
 class PolynomialFit2D:
     def __init__(self, x_domain, y_domain, coefs):
@@ -111,3 +170,34 @@ class PolynomialFit2D:
         x = self._mapped(x, self.x_domain)
         y = self._mapped(y, self.y_domain)
         return numpy.polynomial.polynomial.polyval2d(x, y, self.coefs)
+
+    @staticmethod
+    def _polystr(coef):
+        deg_x, deg_y = coef.shape
+        s = '   |'
+        for x in range(deg_x):
+            if x == 0:
+                p = '1'
+            else:
+                p = 'x%s' % superscript(x)
+            s += ' %12s' % p
+        l = '---+'
+        for x in range(deg_x):
+            l += ' ------------'
+        s += '\n%s\n' % l
+        for y in range(deg_y):
+            if y == 0:
+                p = '1'
+            else:
+                p = 'y%s' % superscript(y)
+            s += '%-2s |' % p
+            for x in range(deg_x):
+                s += ' %12.5f' % coef[x][y]
+            s += '\n'
+        s += l
+        return s
+
+    def __repr__(self):
+        return PolynomialFit2D._polystr(self.coefs) + (
+            '\n : x%s -> [-1. 1.]\n : y%s -> [-1. 1.]' %
+            (self.x_domain, self.y_domain))
