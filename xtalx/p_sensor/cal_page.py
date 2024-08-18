@@ -15,6 +15,19 @@ CAL_F0_COMP_STANDARD    = (1 << 3)
 CAL_F0_REPORT_ID        = (1 << 4)
 CAL_F0_OSC_STARTUP_MS   = (1 << 5)
 
+CAL_FEATURES = [{CAL_F0_REFCLK         : 'MCU refclk',
+                 CAL_F0_POLY_PSI       : 'PSI polynomial',
+                 CAL_F0_POLY_TEMP      : 'Temperature polynomial',
+                 CAL_F0_COMP_STANDARD  : 'Standard Comparators',
+                 CAL_F0_REPORT_ID      : 'XtalxDB Calibration Report ID',
+                 CAL_F0_OSC_STARTUP_MS : 'Oscillator startup period in ms',
+                 },
+                {},
+                {},
+                {},
+                {},
+                ]
+
 CAL_SIG = 0x4C414358
 
 
@@ -31,6 +44,7 @@ PolyTemp = make_poly_bstruct(1, 5)
 
 
 class CalPage(btype.Struct):
+    # Ensure this section is a multiple of 8 bytes.
     sig                 = btype.uint32_t(0xFFFFFFFF)
     checksum_xor32      = btype.uint32_t(0xFFFFFFFF)
     len                 = btype.uint32_t(0xFFFFFFFF)
@@ -40,8 +54,15 @@ class CalPage(btype.Struct):
     poly_psi            = PolyPSI()
     poly_temp           = PolyTemp()
     osc_startup_time_ms = btype.uint32_t(0xFFFFFFFF)
-    rsrv2               = btype.Array(btype.uint32_t(0xFFFFFFFF), 425)
+    pad                 = btype.Array(btype.uint32_t(0xFFFFFFFF), 1)
+
+    # Reserved area, should also be a multiple of 8 bytes.
+    rsrv2               = btype.Array(btype.uint32_t(0xFFFFFFFF), 424)
     _EXPECTED_SIZE      = 2048
+
+    @staticmethod
+    def get_short_size():
+        return CalPage._EXPECTED_SIZE - CalPage._TYPE_MAP['rsrv2']._N * 4
 
     def is_valid(self):
         if self.sig != CAL_SIG:

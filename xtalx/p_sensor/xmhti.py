@@ -310,14 +310,22 @@ class XMHTI:
                                            rx_len=2048)
         return cal_data_0, cal_data_1
 
+    def read_calibration_pages(self):
+        '''
+        Returns CalPage structs for each calibration page in the sensor flash,
+        even if the page(s) are missing or corrupt.
+        '''
+        cp0_data, cp1_data = self.read_calibration_pages_raw()
+        cp0 = CalPage.unpack(cp0_data)
+        cp1 = CalPage.unpack(cp1_data)
+        return cp0, cp1
+
     def read_valid_calibration_page(self):
         '''
         Returns CalPage struct from the sensor flash.  Returns None if the
         calibration is not present or both pages are corrupted.
         '''
-        cp0_data, cp1_data = self.read_calibration_pages_raw()
-        cp0 = CalPage.unpack(cp0_data)
-        cp1 = CalPage.unpack(cp1_data)
+        cp0, cp1 = self.read_calibration_pages()
         return cp0 if cp0.is_valid() else cp1 if cp1.is_valid() else None
 
     def get_boot_status(self):
