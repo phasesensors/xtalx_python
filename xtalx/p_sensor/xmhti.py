@@ -8,8 +8,8 @@ import struct
 import usb
 import usb.util
 import btype
-import psdb.util
 
+from xtalx.tools.iter import prange
 from .cal_page import CalPage
 
 
@@ -406,7 +406,7 @@ class XMHTI:
 
     def read_qspi_flash(self, index, nslots):
         data = b''
-        for i in psdb.util.prange(index, index + nslots, 16384):
+        for i in prange(index, index + nslots, 16384):
             n       = min(nslots, 16384)
             data   += self._exec_qspi_read_command(Opcode.READ_QSPI_FLASH, i, n,
                                                    timeout=1000)
