@@ -79,8 +79,11 @@ def main(args):
         t0 = time.time()
         flash_log_data = xmhti.read_flash_log()
         dt = time.time() - t0
-        print('Read %u bytes in %.2f seconds (%.2f K/s).'
-              % (len(flash_log_data), dt, len(flash_log_data) / (1024*dt)))
+        if dt > 0:
+            print('Read %u bytes in %.2f seconds (%.2f K/s).'
+                  % (len(flash_log_data), dt, len(flash_log_data) / (1024*dt)))
+        else:
+            print('Read %u bytes.' % len(flash_log_data))
 
         with open(args.read_flash_log, 'wb') as f:
             f.write(flash_log_data)
@@ -88,14 +91,17 @@ def main(args):
     # If necessary, read the flash.
     if args.read_qspi or args.decode_qspi:
         print('Reading QSPI flash...')
-        t0        = time.time()
+        t0 = time.time()
         if args.read_qspi:
             qspi_data = xmhti.read_qspi_flash(0, qi.nslots)
         else:
             qspi_data = xmhti.read_qspi_flash(0, qi.write_index)
-        dt        = time.time() - t0
-        print('Read %u bytes in %.2f seconds (%.2f K/s).'
-              % (len(qspi_data), dt, len(qspi_data) / (1024*dt)))
+        dt = time.time() - t0
+        if dt > 0:
+            print('Read %u bytes in %.2f seconds (%.2f K/s).'
+                  % (len(qspi_data), dt, len(qspi_data) / (1024*dt)))
+        else:
+            print('Read %u bytes.' % len(qspi_data))
 
     # If requested, write the flash contents to a file.
     if args.read_qspi:
