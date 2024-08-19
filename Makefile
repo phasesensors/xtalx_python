@@ -10,6 +10,7 @@ MODULES := \
 	xtalx/tools/config/*.py \
 	xtalx/tools/csv/*.py \
 	xtalx/tools/influxdb/*.py \
+	xtalx/tools/iter/*.py \
 	xtalx/tools/math/*.py \
 	xtalx/tools/p_sensor/*.py \
 	xtalx/tools/serial/*.py \
