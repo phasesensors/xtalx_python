@@ -161,7 +161,7 @@ class XHTISM:
     def yield_measurements(self, poll_interval_sec=0.1):
         self._halt_yield = False
         while not self._halt_yield:
-            rr = self.client.read_holding_registers(address=0, count=9,
+            rr = self.client.read_holding_registers(address=0, count=8,
                                                     slave=self.slave_addr)
 
             ft = regs_to_bytes(rr.registers[:4])
