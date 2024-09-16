@@ -31,6 +31,7 @@ class TrackerWindow(glotlib.Window):
         self.lp_lines = self.p_plot.add_steps(X=[], Y=[], width=LINE_WIDTH)
         self.p_lines = self.p_plot.add_steps(X=[], Y=[], width=LINE_WIDTH)
         self.lp_lines.color = (0.78, 0.87, 0.93, 1)
+        self.p_plot.set_y_label('PSI')
 
         self.p_slow_plot = self.add_plot(
             312, limits=(-0.1, -0.5, 120, 300), max_v_ticks=10,
@@ -39,6 +40,7 @@ class TrackerWindow(glotlib.Window):
                                                         width=LINE_WIDTH)
         self.p_slow_lines = self.p_slow_plot.add_lines(X=[], Y=[],
                                                        width=LINE_WIDTH)
+        self.p_slow_plot.set_y_label('PSI (%u-sec Avg)' % period)
 
         self.t_plot = self.add_plot(
             313, limits=(-0.1, -0.5, 120, 50), max_v_ticks=10,
@@ -46,16 +48,9 @@ class TrackerWindow(glotlib.Window):
         self.lt_lines = self.t_plot.add_steps(X=[], Y=[], width=LINE_WIDTH)
         self.t_lines = self.t_plot.add_steps(X=[], Y=[],  width=LINE_WIDTH)
         self.lt_lines.color = (0.78, 0.87, 0.93, 1)
+        self.t_plot.set_y_label('Temp (C)')
 
         self.pos_label = self.add_label((0.99, 0.01), '', anchor='SE')
-
-        y0 = (self.p_plot.bounds[1] + self.p_plot.bounds[3]) / 2
-        y1 = (self.p_slow_plot.bounds[1] + self.p_slow_plot.bounds[3]) / 2
-        y2 = (self.t_plot.bounds[1] + self.t_plot.bounds[3]) / 2
-        self.add_label((.035, y0), 'PSI', anchor='NW', theta=math.pi/2)
-        self.add_label((.035, y1), 'PSI (%u-sec Avg)' % period, anchor='NW',
-                       theta=math.pi/2)
-        self.add_label((.035, y2), 'Temp (C)', anchor='NW', theta=math.pi/2)
 
         self.mouse_vlines = [self.p_plot.add_vline(0, color='#80C080'),
                              self.p_slow_plot.add_vline(0, color='#80C080'),
