@@ -15,10 +15,11 @@ LINE_WIDTH = 1
 
 
 class TrackerWindow(glotlib.Window):
-    def __init__(self, name, period):
+    def __init__(self, name, period, show_lores_data):
         super().__init__(900, 700, msaa=4, name=name)
 
         self.period          = period
+        self.show_lores_data = show_lores_data
         self.data_gen        = -1
         self.plot_gen        = -1
         self.data_lock       = threading.Lock()
@@ -90,7 +91,8 @@ class TrackerWindow(glotlib.Window):
             # Low-res temperature measurements.
             X = [m._timestamp for m in new_data if m.lores_temp_c is not None]
             Y = [m.lores_temp_c for m in new_data if m.lores_temp_c is not None]
-            self.lt_lines.append_x_y_data(X, Y)
+            if self.show_lores_data:
+                self.lt_lines.append_x_y_data(X, Y)
 
             # Hi-res temperature measurements.
             self.t_lines.append_x_y_data(
@@ -107,7 +109,8 @@ class TrackerWindow(glotlib.Window):
             if lp_len:
                 lp_timestamp = self.lp_measurements.X[-1]
             self.lp_measurements.append(X, Y)
-            self.lp_lines.append_x_y_data(X, Y)
+            if self.show_lores_data:
+                self.lp_lines.append_x_y_data(X, Y)
 
             # Averaged data from LP measurements.
             if len(X):
@@ -127,7 +130,9 @@ class TrackerWindow(glotlib.Window):
                         timestamps.append(t + self.period / 2)
                         pressures.append(p)
                     t += self.period
-                self.lp_slow_lines.sub_x_y_data(index, timestamps, pressures)
+                if self.show_lores_data:
+                    self.lp_slow_lines.sub_x_y_data(index, timestamps,
+                                                    pressures)
 
             # Hi-res pressure (P) measurements.
             X = [m._timestamp for m in new_data]
@@ -206,7 +211,8 @@ def main(args):
         csv_file = None
 
     x   = xtalx.p_sensor.make(dev)
-    tw  = TrackerWindow(x.serial_num, args.averaging_period_secs)
+    tw  = TrackerWindow(x.serial_num, args.averaging_period_secs,
+                        args.show_lores_data)
     mt  = threading.Thread(target=measure_thread, args=(x, tw, csv_file))
     mt.start()
 
@@ -224,6 +230,7 @@ def _main():
     parser.add_argument('--serial_number', '-s')
     parser.add_argument('--csv-file')
     parser.add_argument('--averaging-period-secs', type=int, default=3)
+    parser.add_argument('--show-lores-data', action='store_true')
     args = parser.parse_args()
     main(args)
 
