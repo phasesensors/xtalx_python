@@ -15,10 +15,11 @@ LINE_WIDTH = 1
 
 
 class TrackerWindow(glotlib.Window):
-    def __init__(self, name, period):
+    def __init__(self, name, period, show_lores_data):
         super().__init__(900, 700, msaa=4, name=name)
 
         self.period          = period
+        self.show_lores_data = show_lores_data
         self.data_gen        = -1
         self.plot_gen        = -1
         self.data_lock       = threading.Lock()
@@ -31,6 +32,7 @@ class TrackerWindow(glotlib.Window):
         self.lp_lines = self.p_plot.add_steps(X=[], Y=[], width=LINE_WIDTH)
         self.p_lines = self.p_plot.add_steps(X=[], Y=[], width=LINE_WIDTH)
         self.lp_lines.color = (0.78, 0.87, 0.93, 1)
+        self.p_plot.set_y_label('PSI')
 
         self.p_slow_plot = self.add_plot(
             312, limits=(-0.1, -0.5, 120, 300), max_v_ticks=10,
@@ -39,6 +41,7 @@ class TrackerWindow(glotlib.Window):
                                                         width=LINE_WIDTH)
         self.p_slow_lines = self.p_slow_plot.add_lines(X=[], Y=[],
                                                        width=LINE_WIDTH)
+        self.p_slow_plot.set_y_label('PSI (%u-sec Avg)' % period)
 
         self.t_plot = self.add_plot(
             313, limits=(-0.1, -0.5, 120, 50), max_v_ticks=10,
@@ -46,20 +49,21 @@ class TrackerWindow(glotlib.Window):
         self.lt_lines = self.t_plot.add_steps(X=[], Y=[], width=LINE_WIDTH)
         self.t_lines = self.t_plot.add_steps(X=[], Y=[],  width=LINE_WIDTH)
         self.lt_lines.color = (0.78, 0.87, 0.93, 1)
+        self.t_plot.set_y_label('Temp (C)')
 
         self.pos_label = self.add_label((0.99, 0.01), '', anchor='SE')
-
-        y0 = (self.p_plot.bounds[1] + self.p_plot.bounds[3]) / 2
-        y1 = (self.p_slow_plot.bounds[1] + self.p_slow_plot.bounds[3]) / 2
-        y2 = (self.t_plot.bounds[1] + self.t_plot.bounds[3]) / 2
-        self.add_label((.035, y0), 'PSI', anchor='NW', theta=math.pi/2)
-        self.add_label((.035, y1), 'PSI (%u-sec Avg)' % period, anchor='NW',
-                       theta=math.pi/2)
-        self.add_label((.035, y2), 'Temp (C)', anchor='NW', theta=math.pi/2)
 
         self.mouse_vlines = [self.p_plot.add_vline(0, color='#80C080'),
                              self.p_slow_plot.add_vline(0, color='#80C080'),
                              self.t_plot.add_vline(0, color='#80C080')]
+
+        label_font = glotlib.fonts.vera_bold(48, 0)
+        self.psi_label      = self.add_label(self.p_plot.bounds[2:4], '',
+                                             anchor='NE', font=label_font)
+        self.psi_slow_label = self.add_label(self.p_slow_plot.bounds[2:4], '',
+                                             anchor='NE', font=label_font)
+        self.temp_label     = self.add_label(self.t_plot.bounds[2:4], '',
+                                             anchor='NE', font=label_font)
 
     def handle_mouse_moved(self, x, y):
         data_x, _ = self.p_plot._window_to_data(x, y)
@@ -87,12 +91,14 @@ class TrackerWindow(glotlib.Window):
             # Low-res temperature measurements.
             X = [m._timestamp for m in new_data if m.lores_temp_c is not None]
             Y = [m.lores_temp_c for m in new_data if m.lores_temp_c is not None]
-            self.lt_lines.append_x_y_data(X, Y)
+            if self.show_lores_data:
+                self.lt_lines.append_x_y_data(X, Y)
 
             # Hi-res temperature measurements.
             self.t_lines.append_x_y_data(
                 [m._timestamp for m in new_data],
                 [m.temp_c for m in new_data])
+            self.temp_label.set_text('%.4f \u00B0C' % new_data[-1].temp_c)
 
             # Low-res pressure (LP) measurements.
             X = [m._timestamp for m in new_data
@@ -103,7 +109,8 @@ class TrackerWindow(glotlib.Window):
             if lp_len:
                 lp_timestamp = self.lp_measurements.X[-1]
             self.lp_measurements.append(X, Y)
-            self.lp_lines.append_x_y_data(X, Y)
+            if self.show_lores_data:
+                self.lp_lines.append_x_y_data(X, Y)
 
             # Averaged data from LP measurements.
             if len(X):
@@ -123,7 +130,9 @@ class TrackerWindow(glotlib.Window):
                         timestamps.append(t + self.period / 2)
                         pressures.append(p)
                     t += self.period
-                self.lp_slow_lines.sub_x_y_data(index, timestamps, pressures)
+                if self.show_lores_data:
+                    self.lp_slow_lines.sub_x_y_data(index, timestamps,
+                                                    pressures)
 
             # Hi-res pressure (P) measurements.
             X = [m._timestamp for m in new_data]
@@ -133,6 +142,7 @@ class TrackerWindow(glotlib.Window):
                 p_timestamp = self.p_measurements.X[-1]
             self.p_measurements.append(X, Y)
             self.p_lines.append_x_y_data(X, Y)
+            self.psi_label.set_text('%.4f PSI' % new_data[-1].pressure_psi)
 
             # Averaged data from P measurements.
             if p_len:
@@ -152,6 +162,8 @@ class TrackerWindow(glotlib.Window):
                     pressures.append(p)
                 t += self.period
             self.p_slow_lines.sub_x_y_data(index, timestamps, pressures)
+            if len(pressures) >= 2:
+                self.psi_slow_label.set_text('%.4f PSI' % pressures[-2])
 
         return updated
 
@@ -199,7 +211,8 @@ def main(args):
         csv_file = None
 
     x   = xtalx.p_sensor.make(dev)
-    tw  = TrackerWindow(x.serial_num, args.averaging_period_secs)
+    tw  = TrackerWindow(x.serial_num, args.averaging_period_secs,
+                        args.show_lores_data)
     mt  = threading.Thread(target=measure_thread, args=(x, tw, csv_file))
     mt.start()
 
@@ -217,6 +230,7 @@ def _main():
     parser.add_argument('--serial_number', '-s')
     parser.add_argument('--csv-file')
     parser.add_argument('--averaging-period-secs', type=int, default=3)
+    parser.add_argument('--show-lores-data', action='store_true')
     args = parser.parse_args()
     main(args)
 
