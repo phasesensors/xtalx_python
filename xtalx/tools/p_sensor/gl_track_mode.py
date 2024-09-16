@@ -56,6 +56,14 @@ class TrackerWindow(glotlib.Window):
                              self.p_slow_plot.add_vline(0, color='#80C080'),
                              self.t_plot.add_vline(0, color='#80C080')]
 
+        label_font = glotlib.fonts.vera_bold(48, 0)
+        self.psi_label      = self.add_label(self.p_plot.bounds[2:4], '',
+                                             anchor='NE', font=label_font)
+        self.psi_slow_label = self.add_label(self.p_slow_plot.bounds[2:4], '',
+                                             anchor='NE', font=label_font)
+        self.temp_label     = self.add_label(self.t_plot.bounds[2:4], '',
+                                             anchor='NE', font=label_font)
+
     def handle_mouse_moved(self, x, y):
         data_x, _ = self.p_plot._window_to_data(x, y)
         for vline in self.mouse_vlines:
@@ -88,6 +96,7 @@ class TrackerWindow(glotlib.Window):
             self.t_lines.append_x_y_data(
                 [m._timestamp for m in new_data],
                 [m.temp_c for m in new_data])
+            self.temp_label.set_text('%.4f \u00B0C' % new_data[-1].temp_c)
 
             # Low-res pressure (LP) measurements.
             X = [m._timestamp for m in new_data
@@ -128,6 +137,7 @@ class TrackerWindow(glotlib.Window):
                 p_timestamp = self.p_measurements.X[-1]
             self.p_measurements.append(X, Y)
             self.p_lines.append_x_y_data(X, Y)
+            self.psi_label.set_text('%.4f PSI' % new_data[-1].pressure_psi)
 
             # Averaged data from P measurements.
             if p_len:
@@ -147,6 +157,8 @@ class TrackerWindow(glotlib.Window):
                     pressures.append(p)
                 t += self.period
             self.p_slow_lines.sub_x_y_data(index, timestamps, pressures)
+            if len(pressures) >= 2:
+                self.psi_slow_label.set_text('%.4f PSI' % pressures[-2])
 
         return updated
 
