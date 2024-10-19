@@ -190,7 +190,12 @@ def measure_thread(x, tw, csv_file):
 
 
 def main(args):
-    dev = xtalx.p_sensor.find_one_xti(serial_number=args.serial_number)
+    if not args.intf:
+        dev = xtalx.p_sensor.find_one_xti(serial_number=args.serial_number)
+        x   = xtalx.p_sensor.make(dev)
+    else:
+        x = xtalx.p_sensor.XHTISM(args.intf, args.baud_rate,
+                                  int(args.modbus_addr, 0))
 
     if args.csv_file:
         csv_file = open(  # pylint: disable=R1732
@@ -210,7 +215,6 @@ def main(args):
     else:
         csv_file = None
 
-    x   = xtalx.p_sensor.make(dev)
     tw  = TrackerWindow(x.serial_num, args.averaging_period_secs,
                         args.show_lores_data)
     mt  = threading.Thread(target=measure_thread, args=(x, tw, csv_file))
@@ -227,6 +231,9 @@ def main(args):
 
 def _main():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--intf', '-i')
+    parser.add_argument('--baud-rate', type=int, default=115200)
+    parser.add_argument('--modbus-addr', '-m', default='0x80')
     parser.add_argument('--serial_number', '-s')
     parser.add_argument('--csv-file')
     parser.add_argument('--averaging-period-secs', type=int, default=3)
