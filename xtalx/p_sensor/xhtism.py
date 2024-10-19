@@ -167,7 +167,7 @@ class XHTISM:
         (cp,) = self.read_calibration_pages()
         return cp if cp.is_valid() else None
 
-    def yield_measurements(self, poll_interval_sec=0.1):
+    def yield_measurements(self, poll_interval_sec=0.1, **_kwargs):
         self._halt_yield = False
         while not self._halt_yield:
             rr = self.client.read_holding_registers(address=0, count=8,
