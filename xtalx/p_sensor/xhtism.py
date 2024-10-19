@@ -44,6 +44,15 @@ class XHTISM:
          self.fw_version,
          self.git_sha1) = self._read_ids()
 
+        self.cal_page = self.read_valid_calibration_page()
+
+        self.report_id = None
+        self.poly_psi  = None
+        self.poly_temp = None
+        if self.cal_page is not None:
+            self.report_id = self.cal_page.get_report_id()
+            self.poly_psi, self.poly_temp = self.cal_page.get_polynomials()
+
     def __str__(self):
         return 'XHTISM(%s)' % self.serial_num
 
@@ -158,7 +167,7 @@ class XHTISM:
         (cp,) = self.read_calibration_pages()
         return cp if cp.is_valid() else None
 
-    def yield_measurements(self, poll_interval_sec=0.1):
+    def yield_measurements(self, poll_interval_sec=0.1, **_kwargs):
         self._halt_yield = False
         while not self._halt_yield:
             rr = self.client.read_holding_registers(address=0, count=8,
@@ -169,7 +178,15 @@ class XHTISM:
             ft = struct.unpack('<d', ft)[0]
             fp = struct.unpack('<d', fp)[0]
 
-            m = Measurement(self, None, None, None, fp, ft, None, None,
+            psi = None
+            if self.poly_psi is not None and ft and fp:
+                psi = self.poly_psi(fp, ft)
+
+            temp_c = None
+            if self.poly_temp is not None and ft:
+                temp_c = self.poly_temp(ft)
+
+            m = Measurement(self, None, psi, temp_c, fp, ft, None, None,
                             None, None, None, None, None, None, None)
             yield m
 
