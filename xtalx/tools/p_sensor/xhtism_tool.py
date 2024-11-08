@@ -32,11 +32,15 @@ def main(args):
     # If we need to change the comms params, now is the time.
     if args.set_addr or args.set_baud_rate:
         logging.info('%s: Updating comm params...', xhtism.serial_num)
+        if args.set_baud_rate:
+            new_baud_rate = args.set_baud_rate
+        else:
+            new_baud_rate = args.baud_rate
         if args.set_addr:
             addr = int(args.set_addr, 0)
         else:
             addr = xhtism.slave_addr
-        xhtism.set_comm_params(args.set_baud_rate, addr)
+        xhtism.set_comm_params(new_baud_rate, addr)
 
 
 def _main():
