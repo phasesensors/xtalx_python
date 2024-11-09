@@ -48,5 +48,5 @@ CRYSTAL_INFOS = {
     # Temperature crystal.  This is in vacuum and has a very high Q-factor, so
     # when searching the frequency delta should be small.
     262000 : CrystalInfo(262000, 260000, 264000, 260000, 264000, 15,
-                         260000, 264000, 260000, 264000),
+                         260000, 264000, 260000, 264000, -155),
 }
