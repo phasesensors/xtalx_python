@@ -176,7 +176,8 @@ class SetTEnablePayload(btype.Struct):
 
 class FitCommandPayload(btype.Struct):
     flags           = btype.uint32_t()
-    rsrv            = btype.Array(btype.uint8_t(), 12)
+    cordic_rot      = btype.uint32_t()
+    rsrv            = btype.Array(btype.uint8_t(), 8)
     temp_hz         = btype.float64_t()
     _EXPECTED_SIZE  = 24
 
@@ -661,14 +662,20 @@ class TCSC(TinCan):
         return SweepData(results, self._sweep_params, self.einfo.r_feedback,
                          self.yield_Y)
 
-    def get_sweep_fit(self, temp_hz):
+    def get_sweep_fit(self, temp_hz, theta_deg=0):
         flags = 0
         if self.yield_Y:
             flags |= (1 << 0)
 
+        theta_deg = theta_deg % 360
+        cordic_rot = theta_deg * 2**32 // 360
+        if theta_deg != 0:
+            assert self.fw_version >= 0x108
+
         t0 = time.time_ns()
         rsp = self._exec_command(Opcode.FIT_POINTS,
                                  FitCommandPayload(flags=flags,
+                                                   cordic_rot=cordic_rot,
                                                    temp_hz=temp_hz).pack(),
                                  timeout=20000, cls=FitPointsResponse)
         t1 = time.time_ns()
