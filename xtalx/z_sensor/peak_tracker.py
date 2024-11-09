@@ -58,7 +58,6 @@ class PeakTracker:
         self.enable_chirp   = enable_chirp
         self.thread         = None
         self.thread_cond    = threading.Condition()
-        self.thread_exc     = None
 
         self.start_time_ns  = None
         self.t_timeout      = None
@@ -311,8 +310,7 @@ class PeakTracker:
     def start_threaded(self):
         with self.thread_cond:
             assert self.thread is None
-            self.thread_exc = None
-            self.thread     = threading.Thread(target=self._poll_threaded)
+            self.thread = threading.Thread(target=self._poll_threaded)
             self.thread.start()
 
     def stop_threaded(self):
@@ -322,13 +320,10 @@ class PeakTracker:
         t.join()
 
     def _poll_threaded(self):
-        try:
-            with self.thread_cond:
-                if self.thread:
-                    self.start_time_ns = time.time_ns()
-                    self._start_full_search()
-                    while self.thread:
-                        dt = self.poll()
-                        self.thread_cond.wait(timeout=dt)
-        except Exception as e:
-            self.thread_exc = e
+        with self.thread_cond:
+            if self.thread:
+                self.start_time_ns = time.time_ns()
+                self._start_full_search()
+                while self.thread:
+                    dt = self.poll()
+                    self.thread_cond.wait(timeout=dt)
