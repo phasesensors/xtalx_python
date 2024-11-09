@@ -68,7 +68,7 @@ class TrackerWindow(glotlib.Window, Delegate):
         self.chirp_freq       = None
         self.chirp_width      = None
         self.chirp_strength   = None
-        self.sweep_snap       = False
+        self.sweep_snap       = True
         self.track_mode       = None
         self.view_mode        = ViewMode.LARGE
         self.large_w          = self.w_w
