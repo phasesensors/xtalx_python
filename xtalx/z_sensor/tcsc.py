@@ -320,7 +320,7 @@ class SweepResult(btype.Struct):
 
 
 class ParsedSweepResult:
-    def __init__(self, sweep_result, rf, freq, nbufs, yield_Y):
+    def __init__(self, sweep_result, rf, freq, nbufs, yield_Y, theta_rad):
         self._sweep_result = sweep_result
 
         phasors = [sweep_result.real[0] + sweep_result.imag[0] * 1j,
@@ -334,16 +334,22 @@ class ParsedSweepResult:
 
         probea = phasors[0]
         sigin  = phasors[1]
-        self.Z = -probea * rf / sigin
+        Z      = -probea * rf / sigin
+        self.Z = complex(
+                Z.real * math.cos(theta_rad) - Z.imag * math.sin(theta_rad),
+                Z.real * math.sin(theta_rad) + Z.imag * math.cos(theta_rad))
         self.Y = 1 / self.Z
         self.z = self.Y if yield_Y else self.Z
 
 
 class SweepData:
-    def __init__(self, sweep_results, sweep_params, rf, yield_Y):
+    def __init__(self, sweep_results, sweep_params, rf, yield_Y, theta_deg):
         self.results = []
+        theta_deg = theta_deg % 360
+        theta_rad = theta_deg * math.pi / 180
         for sr, (freq, nbufs) in zip(sweep_results, sweep_params):
-            self.results.append(ParsedSweepResult(sr, rf, freq, nbufs, yield_Y))
+            self.results.append(ParsedSweepResult(sr, rf, freq, nbufs, yield_Y,
+                                                  theta_rad))
 
 
 class TCSC(TinCan):
@@ -646,7 +652,7 @@ class TCSC(TinCan):
 
         return sleep_ms / 1000, sleep_ms
 
-    def read_sweep_data(self):
+    def read_sweep_data(self, theta_deg=0):
         size = SweepResult._STRUCT.size * len(self._sweep_params)
         data = self.usb_dev.read(self.RSP_EP, size)
         assert len(data) == size
@@ -660,7 +666,7 @@ class TCSC(TinCan):
             data = data[SweepResult._STRUCT.size:]
 
         return SweepData(results, self._sweep_params, self.einfo.r_feedback,
-                         self.yield_Y)
+                         self.yield_Y, theta_deg)
 
     def get_sweep_fit(self, temp_hz, theta_deg=0):
         flags = 0
