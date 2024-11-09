@@ -13,6 +13,7 @@ import numpy as np
 
 from .tincan import TinCan
 from .scope_data import ScopeData
+from . import crystal_info
 
 
 class SineFitPhasor(btype.Struct):
@@ -175,7 +176,8 @@ class SetTEnablePayload(btype.Struct):
 
 class FitCommandPayload(btype.Struct):
     flags           = btype.uint32_t()
-    rsrv            = btype.Array(btype.uint8_t(), 12)
+    cordic_rot      = btype.uint32_t()
+    rsrv            = btype.Array(btype.uint8_t(), 8)
     temp_hz         = btype.float64_t()
     _EXPECTED_SIZE  = 24
 
@@ -318,7 +320,7 @@ class SweepResult(btype.Struct):
 
 
 class ParsedSweepResult:
-    def __init__(self, sweep_result, rf, freq, nbufs, yield_Y):
+    def __init__(self, sweep_result, rf, freq, nbufs, yield_Y, theta_rad):
         self._sweep_result = sweep_result
 
         phasors = [sweep_result.real[0] + sweep_result.imag[0] * 1j,
@@ -332,16 +334,22 @@ class ParsedSweepResult:
 
         probea = phasors[0]
         sigin  = phasors[1]
-        self.Z = -probea * rf / sigin
+        Z      = -probea * rf / sigin
+        self.Z = complex(
+                Z.real * math.cos(theta_rad) - Z.imag * math.sin(theta_rad),
+                Z.real * math.sin(theta_rad) + Z.imag * math.cos(theta_rad))
         self.Y = 1 / self.Z
         self.z = self.Y if yield_Y else self.Z
 
 
 class SweepData:
-    def __init__(self, sweep_results, sweep_params, rf, yield_Y):
+    def __init__(self, sweep_results, sweep_params, rf, yield_Y, theta_deg):
         self.results = []
+        theta_deg = theta_deg % 360
+        theta_rad = theta_deg * math.pi / 180
         for sr, (freq, nbufs) in zip(sweep_results, sweep_params):
-            self.results.append(ParsedSweepResult(sr, rf, freq, nbufs, yield_Y))
+            self.results.append(ParsedSweepResult(sr, rf, freq, nbufs, yield_Y,
+                                                  theta_rad))
 
 
 class TCSC(TinCan):
@@ -381,6 +389,9 @@ class TCSC(TinCan):
         self.ginfo    = self._get_info()
         self.einfo    = self._get_einfo()
         self.CPU_FREQ = self.ginfo.hclk
+
+        self.crystal_info = crystal_info.CRYSTAL_INFOS.get(
+                self.ginfo.dv_nominal_hz)
 
         self._sweep_params = None
 
@@ -641,7 +652,7 @@ class TCSC(TinCan):
 
         return sleep_ms / 1000, sleep_ms
 
-    def read_sweep_data(self):
+    def read_sweep_data(self, theta_deg=0):
         size = SweepResult._STRUCT.size * len(self._sweep_params)
         data = self.usb_dev.read(self.RSP_EP, size)
         assert len(data) == size
@@ -655,16 +666,22 @@ class TCSC(TinCan):
             data = data[SweepResult._STRUCT.size:]
 
         return SweepData(results, self._sweep_params, self.einfo.r_feedback,
-                         self.yield_Y)
+                         self.yield_Y, theta_deg)
 
-    def get_sweep_fit(self, temp_hz):
+    def get_sweep_fit(self, temp_hz, theta_deg=0):
         flags = 0
         if self.yield_Y:
             flags |= (1 << 0)
 
+        theta_deg = theta_deg % 360
+        cordic_rot = theta_deg * 2**32 // 360
+        if theta_deg != 0:
+            assert self.fw_version >= 0x108
+
         t0 = time.time_ns()
         rsp = self._exec_command(Opcode.FIT_POINTS,
                                  FitCommandPayload(flags=flags,
+                                                   cordic_rot=cordic_rot,
                                                    temp_hz=temp_hz).pack(),
                                  timeout=20000, cls=FitPointsResponse)
         t1 = time.time_ns()

@@ -14,9 +14,6 @@ from xtalx.z_sensor.peak_tracker import Delegate
 
 
 # Search parameters.
-PT_F0              = 20000
-PT_F1              = 35000
-PT_DF              = 50
 PT_NFREQS          = 20
 PT_SEARCH_TIME_SEC = 5
 ENABLE_CHIRP       = False
@@ -163,7 +160,10 @@ class WATWindow(glotlib.Window, Delegate):
             self.f_vs_T_point.set_x_y_data(X=[X[-1]], Y=[Y[-1]])
             self.t_vs_time_lines.append_x_y_data(T, X)
             self.f_vs_time_lines.append_x_y_data(T, Y)
-            self.temp_label.set_text('Temp: %.3fC' % X[-1])
+            if X[-1] is not None:
+                self.temp_label.set_text('Temp: %.3fC' % X[-1])
+            else:
+                self.temp_label.set_text('Temp: n/a')
             self.freq_label.set_text('Freq: %.3f Hz' % Y[-1])
             updated = True
 
@@ -229,8 +229,8 @@ def main(args):
     tc     = xtalx.z_sensor.make(dev, yield_Y=True)
     ww     = WATWindow(tc, csv)
     a      = tc.parse_amplitude(None)
-    pt     = xtalx.z_sensor.PeakTracker(tc, a, PT_F0, PT_F1, PT_DF, PT_NFREQS,
-                                        PT_SEARCH_TIME_SEC, PT_SWEEP_TIME_SEC,
+    pt     = xtalx.z_sensor.PeakTracker(tc, a, PT_NFREQS, PT_SEARCH_TIME_SEC,
+                                        PT_SWEEP_TIME_SEC,
                                         settle_ms=PT_SETTLE_TIME_MS,
                                         delegate=ww, enable_chirp=ENABLE_CHIRP)
     pt.start_threaded()

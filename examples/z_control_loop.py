@@ -30,10 +30,9 @@ def main(rv):
     za, zl = z_common.parse_args(tc, rv)
 
     pq = xtalx.z_sensor.PredicateQueue(delegate=z_common.ZDelegate(zl))
-    pt = xtalx.z_sensor.PeakTracker(tc, za.amplitude, za.f0, za.f1, za.df,
-                                    za.nfreqs, za.search_time_secs,
-                                    za.sweep_time_secs, settle_ms=za.settle_ms,
-                                    delegate=pq)
+    pt = xtalx.z_sensor.PeakTracker(tc, za.amplitude, za.nfreqs,
+                                    za.search_time_secs, za.sweep_time_secs,
+                                    settle_ms=za.settle_ms, delegate=pq)
     pt.start_threaded()
 
     try:

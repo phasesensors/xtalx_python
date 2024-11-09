@@ -7,32 +7,13 @@ from xtalx.tools.config import Config
 from xtalx.tools.influxdb import InfluxDBPushQueue
 
 
-class SearchParams:
-    def __init__(self, name, f0, f1, df):
-        self.name = name
-        self.f0   = f0
-        self.f1   = f1
-        self.df   = df
-
-
-SEARCH_PARAMS = {
-    32768 : (20000, 35000, 50),
-    20000 : (18000, 21000, 10),
-}
-
-
 class ZArgs:
     '''
     Helper class to hold common arguments parsed from the command line.
     '''
-    def __init__(self, amplitude, f0, f1, df, nfreqs, search_time_secs,
-                 sweep_time_secs, settle_ms):
+    def __init__(self, amplitude, nfreqs, search_time_secs, sweep_time_secs,
+                 settle_ms):
         self.amplitude        = amplitude
-        self.f0               = f0
-        self.f1               = f1
-        self.f_min            = min(f0, f1)
-        self.f_max            = max(f0, f1)
-        self.df               = df
         self.nfreqs           = nfreqs
         self.search_time_secs = search_time_secs
         self.sweep_time_secs  = sweep_time_secs
@@ -163,26 +144,13 @@ def parse_args(tc, rv):
     if not 0 <= amplitude <= 2000:
         raise Exception('Amplitude not in range 0 to 2000.')
 
-    if rv.freq_0 is not None or rv.freq_1 is not None:
-        if rv.freq_0 is None or rv.freq_1 is None:
-            raise Exception('Most specify neither or both of --freq-0, '
-                            '--freq-1')
-        f0 = float(rv.freq_0)
-        f1 = float(rv.freq_1)
-        df = rv.df or 1
-    else:
-        f0, f1, df = SEARCH_PARAMS[tc.ginfo.dv_nominal_hz]
-
-    return (ZArgs(amplitude, f0, f1, df, rv.nfreqs, rv.search_time_secs,
-                  rv.sweep_time_secs, rv.settle_ms),
+    return (ZArgs(amplitude, rv.nfreqs, rv.search_time_secs, rv.sweep_time_secs,
+                  rv.settle_ms),
             ZLogger(rv.fit_file, rv.dump_file))
 
 
 def add_arguments(parser):
     parser.add_argument('--amplitude', '-a')
-    parser.add_argument('--freq-0', '-0')
-    parser.add_argument('--freq-1', '-1')
-    parser.add_argument('--df', type=float)
     parser.add_argument('--nfreqs', '-n', type=int, default=100)
     parser.add_argument('--verbose', action='store_true')
     parser.add_argument('--search-time-secs', type=float, default=30)

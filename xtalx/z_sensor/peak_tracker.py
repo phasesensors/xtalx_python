@@ -10,18 +10,10 @@ import numpy as np
 from xtalx.tools.math import Lorentzian
 
 
-CHIRP_RANGES = {
-    32768 : (28000, 33500),
-    20000 : (15000, 21000),
-}
 CHIRP_A      = 0.25
 CHIRP_MS     = 105
 CHIRP_DT     = CHIRP_MS * 0.001 * 2 + 0.02
 CHIRP_MIN_RR = 0.2
-
-
-def is_good_freq(f):
-    return 10000 <= f <= 45000
 
 
 class State(enum.Enum):
@@ -54,17 +46,11 @@ class Delegate:
 
 
 class PeakTracker:
-    def __init__(self, tc, amplitude, f0, f1, search_df, nfreqs, search_time,
-                 sweep_time, settle_ms=2, delegate=Delegate(),
-                 enable_chirp=True):
+    def __init__(self, tc, amplitude, nfreqs, search_time, sweep_time,
+                 settle_ms=2, delegate=Delegate(), enable_chirp=True):
         self.tc             = tc
         self.amplitude      = amplitude
-        self.f0             = f0
-        self.f1             = f1
-        self.search_df      = search_df
         self.nfreqs         = nfreqs
-        self.search_min_f   = min(f0, f1)
-        self.search_max_f   = max(f0, f1)
         self.search_time    = search_time
         self.sweep_time     = sweep_time
         self.settle_ms      = settle_ms
@@ -72,7 +58,6 @@ class PeakTracker:
         self.enable_chirp   = enable_chirp
         self.thread         = None
         self.thread_cond    = threading.Condition()
-        self.thread_exc     = None
 
         self.start_time_ns  = None
         self.t_timeout      = None
@@ -85,12 +70,14 @@ class PeakTracker:
         self.sweep_iter     = None
         self.sweep_t0_ns    = None
         self.state          = State.IDLE
-        self.chirp_range    = CHIRP_RANGES.get(tc.ginfo.dv_nominal_hz,
-                                               (28000, 33500))
-        self.chirp_space    = np.linspace(self.chirp_range[0],
-                                          self.chirp_range[1],
-                                          int(self.chirp_range[1] -
-                                              self.chirp_range[0]))
+
+        ci                = tc.crystal_info
+        self.theta_deg    = ci.phase_shift_deg
+        self.search_df    = ci.search_df
+        self.search_min_f = min(ci.search_f0, ci.search_f1)
+        self.search_max_f = max(ci.search_f0, ci.search_f1)
+        self.chirp_space  = np.linspace(ci.chirp_f0, ci.chirp_f1,
+                                        int(ci.chirp_f1 - ci.chirp_f0))
 
     def _transition(self, new_state):
         if self.state == new_state:
@@ -108,7 +95,7 @@ class PeakTracker:
                                              hires, ftups[0][0], ftups[-1][0])
 
     def _read_sweep_points(self):
-        points = self.tc.read_sweep_data().results
+        points = self.tc.read_sweep_data(theta_deg=self.theta_deg).results
         max_amplitude = max(p.amplitude[1] for p in points)
         if max_amplitude >= self.tc.ADC_MAX / 2:
             self.tc.warn('Possible amplitude clipping.  Max amplitude '
@@ -118,9 +105,12 @@ class PeakTracker:
         return points
 
     def _get_sweep_fit(self, temp_hz):
-        fit = self.tc.get_sweep_fit(temp_hz)
+        fit = self.tc.get_sweep_fit(temp_hz, theta_deg=self.theta_deg)
         temp_c = fit.temp_c
-        if not 1 <= fit.status <= 4:
+        if fit.status == 5:
+            self.tc.warn('FwFit hit maximum iteration count, fit may be '
+                         'sub-optimal.')
+        elif not 1 <= fit.status <= 4:
             self.tc.warn('FwFit failed: %s s status %d niter %d' %
                          (fit.dt / 1e9, fit.status, fit.niter))
             fit = None
@@ -154,7 +144,8 @@ class PeakTracker:
         N           = int(1 + (max_f - min_f) // df)
         dt          = math.ceil(1000 * self.search_time / N)
         freqs       = [min_f + i*df for i in range(N)]
-        ftups       = [(f, dt) for f in freqs if is_good_freq(f)]
+        ftups       = [(f, dt) for f in freqs
+                       if self.tc.crystal_info.is_valid_freq(f)]
         self.min_rr = 0.5
         self.min_w  = 12
         self._start_sweep(ftups, False)
@@ -172,8 +163,9 @@ class PeakTracker:
                                               self.hires_width,
                                               self.nfreqs // 2)
         dt          = math.ceil(1000 * self.sweep_time / len(freqs))
-        ftups       = [(f, dt) for f in freqs if is_good_freq(f)]
-        self.min_rr = 0.81
+        ftups       = [(f, dt) for f in freqs
+                       if self.tc.crystal_info.is_valid_freq(f)]
+        self.min_rr = 0.75
         self.min_w  = 0
         self._start_sweep(ftups, True)
         self._transition(State.HIRES_SWEEP_WAIT_DATA)
@@ -215,7 +207,7 @@ class PeakTracker:
         dt_ms = round((t1_ns - t0_ns) / 1000000)
 
         if (hires and fw_fit is not None and fw_fit.RR >= self.min_rr and
-                15000 <= fw_fit.peak_hz <= 35000):
+                self.tc.crystal_info.is_valid_peak(fw_fit.peak_hz)):
             self.sweep_iter += 1
         else:
             self.sweep_iter = 0
@@ -239,7 +231,7 @@ class PeakTracker:
             self._start_full_search()
             return
 
-        if not 15000 <= fw_fit.peak_hz <= 35000:
+        if not self.tc.crystal_info.is_valid_peak(fw_fit.peak_hz):
             self.tc.warn('Detected out-of-bounds peak, repeating peak search.')
             self._start_full_search()
             return
@@ -250,6 +242,11 @@ class PeakTracker:
 
     def _handle_chirp_timeout(self):
         res = self.tc.sample_auto_chirp_sync()
+        if res.bin1 >= len(res.bins):
+            self.tc.info('Chirp out of range, falling back to search mode.')
+            self._start_peak_search_defaults()
+            return
+
         self.t_timeout = time.time() + CHIRP_DT
 
         X = np.linspace(res.f0, res.f1, res.nbins)
@@ -313,8 +310,7 @@ class PeakTracker:
     def start_threaded(self):
         with self.thread_cond:
             assert self.thread is None
-            self.thread_exc = None
-            self.thread     = threading.Thread(target=self._poll_threaded)
+            self.thread = threading.Thread(target=self._poll_threaded)
             self.thread.start()
 
     def stop_threaded(self):
@@ -324,13 +320,10 @@ class PeakTracker:
         t.join()
 
     def _poll_threaded(self):
-        try:
-            with self.thread_cond:
-                if self.thread:
-                    self.start_time_ns = time.time_ns()
-                    self._start_full_search()
-                    while self.thread:
-                        dt = self.poll()
-                        self.thread_cond.wait(timeout=dt)
-        except Exception as e:
-            self.thread_exc = e
+        with self.thread_cond:
+            if self.thread:
+                self.start_time_ns = time.time_ns()
+                self._start_full_search()
+                while self.thread:
+                    dt = self.poll()
+                    self.thread_cond.wait(timeout=dt)

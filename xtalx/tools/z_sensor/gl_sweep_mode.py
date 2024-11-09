@@ -103,9 +103,9 @@ class SweepWindow(glotlib.Window):
             self.zx_plot.snap_bounds()
             self.nyq_plot.snap_bounds()
 
-        # for i, adc_lines in enumerate(self.adcs_lines):
-        #     adc_lines.set_x_y_data(fs, [r.amplitude[i] for r in sdr])
-        self.adcs_lines[0].set_x_y_data(fs, [r.z.real for r in sdr])
+        for i, adc_lines in enumerate(self.adcs_lines):
+            adc_lines.set_x_y_data(fs, [r.amplitude[i] for r in sdr])
+        # self.adcs_lines[0].set_x_y_data(fs, [r.z.real for r in sdr])
 
         return True
 

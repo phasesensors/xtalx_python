@@ -13,8 +13,8 @@ def main(rv):
     tc     = xtalx.z_sensor.make(dev, verbose=rv.verbose,
                                  yield_Y=not rv.track_impedance)
     za, zl = z_common.parse_args(tc, rv)
-    pt     = xtalx.z_sensor.PeakTracker(tc, za.amplitude, za.f0, za.f1, za.df,
-                                        za.nfreqs, za.search_time_secs,
+    pt     = xtalx.z_sensor.PeakTracker(tc, za.amplitude, za.nfreqs,
+                                        za.search_time_secs,
                                         za.sweep_time_secs,
                                         settle_ms=za.settle_ms,
                                         delegate=z_common.ZDelegate(zl))
