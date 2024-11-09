@@ -73,6 +73,7 @@ class PeakTracker:
         self.state          = State.IDLE
 
         ci                = tc.crystal_info
+        self.theta_deg    = ci.phase_shift_deg
         self.search_df    = ci.search_df
         self.search_min_f = min(ci.search_f0, ci.search_f1)
         self.search_max_f = max(ci.search_f0, ci.search_f1)
@@ -95,7 +96,7 @@ class PeakTracker:
                                              hires, ftups[0][0], ftups[-1][0])
 
     def _read_sweep_points(self):
-        points = self.tc.read_sweep_data().results
+        points = self.tc.read_sweep_data(theta_deg=self.theta_deg).results
         max_amplitude = max(p.amplitude[1] for p in points)
         if max_amplitude >= self.tc.ADC_MAX / 2:
             self.tc.warn('Possible amplitude clipping.  Max amplitude '
@@ -105,7 +106,7 @@ class PeakTracker:
         return points
 
     def _get_sweep_fit(self, temp_hz):
-        fit = self.tc.get_sweep_fit(temp_hz)
+        fit = self.tc.get_sweep_fit(temp_hz, theta_deg=self.theta_deg)
         temp_c = fit.temp_c
         if not 1 <= fit.status <= 4:
             self.tc.warn('FwFit failed: %s s status %d niter %d' %
