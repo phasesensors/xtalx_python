@@ -166,7 +166,7 @@ class PeakTracker:
         dt          = math.ceil(1000 * self.sweep_time / len(freqs))
         ftups       = [(f, dt) for f in freqs
                        if self.tc.crystal_info.is_valid_freq(f)]
-        self.min_rr = 0.81
+        self.min_rr = 0.75
         self.min_w  = 0
         self._start_sweep(ftups, True)
         self._transition(State.HIRES_SWEEP_WAIT_DATA)
