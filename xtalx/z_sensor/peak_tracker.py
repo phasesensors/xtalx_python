@@ -239,6 +239,11 @@ class PeakTracker:
 
     def _handle_chirp_timeout(self):
         res = self.tc.sample_auto_chirp_sync()
+        if res.bin1 >= len(res.bins):
+            self.tc.info('Chirp out of range, falling back to search mode.')
+            self._start_peak_search_defaults()
+            return
+
         self.t_timeout = time.time() + CHIRP_DT
 
         X = np.linspace(res.f0, res.f1, res.nbins)
