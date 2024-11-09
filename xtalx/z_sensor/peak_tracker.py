@@ -10,18 +10,10 @@ import numpy as np
 from xtalx.tools.math import Lorentzian
 
 
-CHIRP_RANGES = {
-    32768 : (28000, 33500),
-    20000 : (15000, 21000),
-}
 CHIRP_A      = 0.25
 CHIRP_MS     = 105
 CHIRP_DT     = CHIRP_MS * 0.001 * 2 + 0.02
 CHIRP_MIN_RR = 0.2
-
-
-def is_good_freq(f):
-    return 10000 <= f <= 45000
 
 
 class State(enum.Enum):
@@ -54,17 +46,11 @@ class Delegate:
 
 
 class PeakTracker:
-    def __init__(self, tc, amplitude, f0, f1, search_df, nfreqs, search_time,
-                 sweep_time, settle_ms=2, delegate=Delegate(),
-                 enable_chirp=True):
+    def __init__(self, tc, amplitude, nfreqs, search_time, sweep_time,
+                 settle_ms=2, delegate=Delegate(), enable_chirp=True):
         self.tc             = tc
         self.amplitude      = amplitude
-        self.f0             = f0
-        self.f1             = f1
-        self.search_df      = search_df
         self.nfreqs         = nfreqs
-        self.search_min_f   = min(f0, f1)
-        self.search_max_f   = max(f0, f1)
         self.search_time    = search_time
         self.sweep_time     = sweep_time
         self.settle_ms      = settle_ms
@@ -85,12 +71,13 @@ class PeakTracker:
         self.sweep_iter     = None
         self.sweep_t0_ns    = None
         self.state          = State.IDLE
-        self.chirp_range    = CHIRP_RANGES.get(tc.ginfo.dv_nominal_hz,
-                                               (28000, 33500))
-        self.chirp_space    = np.linspace(self.chirp_range[0],
-                                          self.chirp_range[1],
-                                          int(self.chirp_range[1] -
-                                              self.chirp_range[0]))
+
+        ci                = tc.crystal_info
+        self.search_df    = ci.search_df
+        self.search_min_f = min(ci.search_f0, ci.search_f1)
+        self.search_max_f = max(ci.search_f0, ci.search_f1)
+        self.chirp_space  = np.linspace(ci.chirp_f0, ci.chirp_f1,
+                                        int(ci.chirp_f1 - ci.chirp_f0))
 
     def _transition(self, new_state):
         if self.state == new_state:
@@ -154,7 +141,8 @@ class PeakTracker:
         N           = int(1 + (max_f - min_f) // df)
         dt          = math.ceil(1000 * self.search_time / N)
         freqs       = [min_f + i*df for i in range(N)]
-        ftups       = [(f, dt) for f in freqs if is_good_freq(f)]
+        ftups       = [(f, dt) for f in freqs
+                       if self.tc.crystal_info.is_valid_freq(f)]
         self.min_rr = 0.5
         self.min_w  = 12
         self._start_sweep(ftups, False)
@@ -172,7 +160,8 @@ class PeakTracker:
                                               self.hires_width,
                                               self.nfreqs // 2)
         dt          = math.ceil(1000 * self.sweep_time / len(freqs))
-        ftups       = [(f, dt) for f in freqs if is_good_freq(f)]
+        ftups       = [(f, dt) for f in freqs
+                       if self.tc.crystal_info.is_valid_freq(f)]
         self.min_rr = 0.81
         self.min_w  = 0
         self._start_sweep(ftups, True)
@@ -215,7 +204,7 @@ class PeakTracker:
         dt_ms = round((t1_ns - t0_ns) / 1000000)
 
         if (hires and fw_fit is not None and fw_fit.RR >= self.min_rr and
-                15000 <= fw_fit.peak_hz <= 35000):
+                self.tc.crystal_info.is_valid_peak(fw_fit.peak_hz)):
             self.sweep_iter += 1
         else:
             self.sweep_iter = 0
@@ -239,7 +228,7 @@ class PeakTracker:
             self._start_full_search()
             return
 
-        if not 15000 <= fw_fit.peak_hz <= 35000:
+        if not self.tc.crystal_info.is_valid_peak(fw_fit.peak_hz):
             self.tc.warn('Detected out-of-bounds peak, repeating peak search.')
             self._start_full_search()
             return

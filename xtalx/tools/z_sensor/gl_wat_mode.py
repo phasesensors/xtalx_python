@@ -14,9 +14,6 @@ from xtalx.z_sensor.peak_tracker import Delegate
 
 
 # Search parameters.
-PT_F0              = 20000
-PT_F1              = 35000
-PT_DF              = 50
 PT_NFREQS          = 20
 PT_SEARCH_TIME_SEC = 5
 ENABLE_CHIRP       = False
@@ -229,8 +226,8 @@ def main(args):
     tc     = xtalx.z_sensor.make(dev, yield_Y=True)
     ww     = WATWindow(tc, csv)
     a      = tc.parse_amplitude(None)
-    pt     = xtalx.z_sensor.PeakTracker(tc, a, PT_F0, PT_F1, PT_DF, PT_NFREQS,
-                                        PT_SEARCH_TIME_SEC, PT_SWEEP_TIME_SEC,
+    pt     = xtalx.z_sensor.PeakTracker(tc, a, PT_NFREQS, PT_SEARCH_TIME_SEC,
+                                        PT_SWEEP_TIME_SEC,
                                         settle_ms=PT_SETTLE_TIME_MS,
                                         delegate=ww, enable_chirp=ENABLE_CHIRP)
     pt.start_threaded()

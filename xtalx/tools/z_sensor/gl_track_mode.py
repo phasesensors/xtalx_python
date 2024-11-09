@@ -424,7 +424,7 @@ def main(rv):
     za, zl = z_common.parse_args(tc, rv)
     tw     = TrackerWindow(tc, ipq, za, zl, tc.serial_num)
     pt     = xtalx.z_sensor.PeakTracker(
-              tc, za.amplitude, za.f0, za.f1, za.df, za.nfreqs,
+              tc, za.amplitude, za.nfreqs,
               za.search_time_secs, za.sweep_time_secs,
               settle_ms=za.settle_ms, delegate=tw)
     pt.start_threaded()
