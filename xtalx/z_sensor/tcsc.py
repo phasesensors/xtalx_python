@@ -13,6 +13,7 @@ import numpy as np
 
 from .tincan import TinCan
 from .scope_data import ScopeData
+from . import crystal_info
 
 
 class SineFitPhasor(btype.Struct):
@@ -381,6 +382,9 @@ class TCSC(TinCan):
         self.ginfo    = self._get_info()
         self.einfo    = self._get_einfo()
         self.CPU_FREQ = self.ginfo.hclk
+
+        self.crystal_info = crystal_info.CRYSTAL_INFOS.get(
+                self.ginfo.dv_nominal_hz)
 
         self._sweep_params = None
 
