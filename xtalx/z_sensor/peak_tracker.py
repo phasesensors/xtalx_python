@@ -108,7 +108,10 @@ class PeakTracker:
     def _get_sweep_fit(self, temp_hz):
         fit = self.tc.get_sweep_fit(temp_hz, theta_deg=self.theta_deg)
         temp_c = fit.temp_c
-        if not 1 <= fit.status <= 4:
+        if fit.status == 5:
+            self.tc.warn('FwFit hit maximum iteration count, fit may be '
+                         'sub-optimal.')
+        elif not 1 <= fit.status <= 4:
             self.tc.warn('FwFit failed: %s s status %d niter %d' %
                          (fit.dt / 1e9, fit.status, fit.niter))
             fit = None
