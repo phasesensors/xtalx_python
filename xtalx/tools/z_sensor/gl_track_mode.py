@@ -99,9 +99,11 @@ class TrackerWindow(glotlib.Window, Delegate):
             sharex=self.d_plot)
         self.t_lines = self.t_plot.add_lines([], width=LINE_WIDTH)
 
+        f_min = tc.crystal_info.search_min_f
+        f_max = tc.crystal_info.search_max_f
         self.fc_plot = self.add_plot(
             (5, 8, (25, 27)),
-            limits=(-0.1, z_args.f_min, 50, z_args.f_max),
+            limits=(-0.1, f_min, 50, f_max),
             max_v_ticks=4, sharex=self.d_plot)
         self.fc_lines = self.fc_plot.add_lines([], width=LINE_WIDTH)
 
@@ -111,18 +113,18 @@ class TrackerWindow(glotlib.Window, Delegate):
         self.w_lines = self.w_plot.add_lines([], width=LINE_WIDTH)
 
         self.zx_plot = self.add_plot(
-            (5, 4, 17), limits=(z_args.f_min, -1, z_args.f_max, 1),
+            (5, 4, 17), limits=(f_min, -1, f_max, 1),
             max_h_ticks=4, max_v_ticks=4)
         self.zx_lines = self._make_lines(self.zx_plot)
 
         self.phi_plot = self.add_plot(
             (5, 4, 18),
-            limits=(z_args.f_min, -math.pi, z_args.f_max, math.pi),
+            limits=(f_min, -math.pi, f_max, math.pi),
             max_h_ticks=4, max_v_ticks=4, sharex=self.zx_plot)
         self.phi_lines = self._make_lines(self.phi_plot)
 
         self.rzx_plot = self.add_plot(
-            (5, 4, 19), limits=(z_args.f_min, -1, z_args.f_max, 1),
+            (5, 4, 19), limits=(f_min, -1, f_max, 1),
             max_h_ticks=4, max_v_ticks=4, sharex=self.zx_plot)
         self.rzx_lines = self._make_lines(self.rzx_plot)
         self.rzx_lines[0].point_width = 3
