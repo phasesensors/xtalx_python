@@ -5,7 +5,7 @@
 class CrystalInfo:
     def __init__(self, nominal_hz, chirp_f0, chirp_f1, search_f0, search_f1,
                  search_df, is_valid_freq_f0, is_valid_freq_f1,
-                 is_valid_peak_f0, is_valid_peak_f1):
+                 is_valid_peak_f0, is_valid_peak_f1, phase_shift_deg=0):
         self.nominal_hz        = nominal_hz
         self.chirp_f0          = chirp_f0
         self.chirp_f1          = chirp_f1
@@ -18,6 +18,7 @@ class CrystalInfo:
         self.is_valid_freq_f1  = is_valid_freq_f1
         self.is_valid_peak_f0  = is_valid_peak_f0
         self.is_valid_peak_f1  = is_valid_peak_f1
+        self.phase_shift_deg   = phase_shift_deg
 
     def is_valid_freq(self, hz):
         return self.is_valid_freq_f0 <= hz <= self.is_valid_freq_f1
