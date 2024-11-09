@@ -160,7 +160,10 @@ class WATWindow(glotlib.Window, Delegate):
             self.f_vs_T_point.set_x_y_data(X=[X[-1]], Y=[Y[-1]])
             self.t_vs_time_lines.append_x_y_data(T, X)
             self.f_vs_time_lines.append_x_y_data(T, Y)
-            self.temp_label.set_text('Temp: %.3fC' % X[-1])
+            if X[-1] is not None:
+                self.temp_label.set_text('Temp: %.3fC' % X[-1])
+            else:
+                self.temp_label.set_text('Temp: n/a')
             self.freq_label.set_text('Freq: %.3f Hz' % Y[-1])
             updated = True
 
