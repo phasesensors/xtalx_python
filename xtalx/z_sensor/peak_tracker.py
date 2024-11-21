@@ -199,7 +199,7 @@ class PeakTracker:
 
         t0_ns = time.time_ns()
 
-        temp_freq      = self._get_temp_freq()
+        temp_freq      = self._get_temp_freq() or 0
         fw_fit, temp_c = self._get_sweep_fit(temp_freq)
         hires          = (self.state == State.HIRES_SWEEP_WAIT_DATA)
 
