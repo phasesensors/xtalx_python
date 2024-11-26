@@ -129,8 +129,11 @@ class PeakTracker:
         '''
         self.tc.info('Chirping from %f to %f...' % (self.chirp_space[0],
                                                     self.chirp_space[-1]))
+        A = self.tc.a_to_dac(CHIRP_A)
+        if A is None:
+            A = 945
         self.tc.send_auto_chirp_cmd(self.chirp_space[0], self.chirp_space[-1],
-                                    round(self.tc.a_to_dac(CHIRP_A)))
+                                    round(A))
         self._transition(State.CHIRP_WAIT_DATA)
         self.t_timeout = time.time() + CHIRP_DT
         self.sweep_iter = 0
