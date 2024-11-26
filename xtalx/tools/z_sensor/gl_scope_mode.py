@@ -11,6 +11,7 @@ import numpy
 import scipy.fft
 
 import glotlib
+import glfw
 
 import xtalx.z_sensor
 
@@ -34,6 +35,12 @@ class ScopeWindow(glotlib.Window):
         self.adc         = None
         self.adc_fit     = None
         self.fft         = None
+
+        self.t_req       = False
+        self.t_act       = False
+        self.paused      = False
+        tc.info('Disabling T oscillator.')
+        tc.set_t_enable(self.t_act)
 
         ax = self.add_plot((8, 1, (1, 5)),
                            limits=(0, 0, self.tc.ms_samples(),
@@ -88,6 +95,18 @@ class ScopeWindow(glotlib.Window):
 
         return True
 
+    def handle_key_press(self, key):
+        if key == glfw.KEY_T:
+            self.t_req = not self.t_act
+        elif key == glfw.KEY_P:
+            self.paused = not self.paused
+            if self.paused:
+                self.tc.info('Pausing.')
+            else:
+                self.tc.info('Unpausing.')
+        else:
+            super().handle_key_press(key)
+
     def usb_thread(self):
         total_len = len1 = 0
 
@@ -95,6 +114,18 @@ class ScopeWindow(glotlib.Window):
         t0 = t1 = time.time()
         while self.running:
             time.sleep(0.02)
+            if self.t_req != self.t_act:
+                if self.t_req:
+                    self.tc.info('Enabling T oscillator.')
+                else:
+                    self.tc.info('Disabling T oscillator.')
+                self.tc.set_t_enable(self.t_req)
+                self.t_act = self.t_req
+
+            if self.paused:
+                time.sleep(0.1)
+                continue
+
             sd = self.tc.sample_scope_sync()
 
             new_len = total_len + len(sd.data)

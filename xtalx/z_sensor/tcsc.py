@@ -223,7 +223,7 @@ class GetInfoResponse:
             self.dv_nominal_hz = 32768
         else:
             self.nresets       = (rsp.params[3] >> 24) & 0xFF
-            self.dv_nominal_hz = rsp.params[3] & 0xFFFFFF
+            self.dv_nominal_hz = (rsp.params[3] & 0xFFFFFF) or 32768
 
     def have_temp_cal(self):
         return self.cal_params & (1 << 0)
