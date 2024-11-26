@@ -38,6 +38,7 @@ class ScopeWindow(glotlib.Window):
 
         self.t_req       = False
         self.t_act       = False
+        self.paused      = False
         tc.info('Disabling T oscillator.')
         tc.set_t_enable(self.t_act)
 
@@ -97,6 +98,12 @@ class ScopeWindow(glotlib.Window):
     def handle_key_press(self, key):
         if key == glfw.KEY_T:
             self.t_req = not self.t_act
+        elif key == glfw.KEY_P:
+            self.paused = not self.paused
+            if self.paused:
+                self.tc.info('Pausing.')
+            else:
+                self.tc.info('Unpausing.')
         else:
             super().handle_key_press(key)
 
@@ -114,6 +121,10 @@ class ScopeWindow(glotlib.Window):
                     self.tc.info('Disabling T oscillator.')
                 self.tc.set_t_enable(self.t_req)
                 self.t_act = self.t_req
+
+            if self.paused:
+                time.sleep(0.1)
+                continue
 
             sd = self.tc.sample_scope_sync()
 
