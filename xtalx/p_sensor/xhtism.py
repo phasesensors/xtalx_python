@@ -3,24 +3,10 @@
 import time
 import struct
 
-from pymodbus.client import ModbusSerialClient
+import xtalx.tools.modbus
 
 from .xti import Measurement
 from .cal_page import CalPage
-
-
-def regs_to_bytes(regs):
-    '''
-    Converts a list of 16-bit Modbus registers into a string of bytes -
-    basically undoing the register list that pymodbus parsed out of the byte
-    stream back into the original byte stream because no, we really don't care
-    about 2-byte Modbus registers in this day and age.
-
-    This is set up so that the returned bytes are in the exact same order that
-    they were written to the serial port in - no byte-swapping on register
-    boundaries or anything like that.
-    '''
-    return b''.join([struct.pack('>H', r) for r in regs])
 
 
 class XHTISM:
@@ -28,16 +14,15 @@ class XHTISM:
     This is a driver for the high-temperature XHTIS sensor built with Modbus
     firmware.
     '''
-    def __init__(self, intf, baudrate=115200, slave_addr=0x80):
+    def __init__(self, intf, baud_rate=115200, slave_addr=0x80):
         assert intf is not None
 
         self.intf        = intf
         self.slave_addr  = slave_addr
-        self.baud_rate   = baudrate
+        self.baud_rate   = baud_rate
         self._halt_yield = True
 
-        self.client = ModbusSerialClient(intf, baudrate=baudrate, parity='E')
-        self.client.connect()
+        self.bus = xtalx.tools.modbus.Bus(intf, baud_rate=baud_rate, parity='E')
 
         (self.serial_num,
          self.fw_version_str,
@@ -57,31 +42,21 @@ class XHTISM:
         return 'XHTISM(%s)' % self.serial_num
 
     def _read_ids(self):
-        # This doesn't always work the first time; retry it a few times.
-        for _ in range(5):
-            info = self.client.read_device_information(read_code=0x01,
-                                                       object_id=0x00,
-                                                       slave=self.slave_addr)
-            if not info.isError():
-                break
+        objs = self.bus.read_device_identification(self.slave_addr, 0x01, 0x00)
 
-            time.sleep(0.1)
+        assert objs[0].value == b'Phase'
+        assert objs[1].value.startswith(b'XHTIS-')
 
-        assert not info.isError()
-        assert info.information[0] == b'Phase'
-        assert info.information[1].startswith(b'XHTIS-')
-
-        fw_version_str = info.information[2].decode()
+        fw_version_str = objs[2].value.decode()
         parts          = fw_version_str.split('.')
         fw_version = ((int(parts[0]) << 8) |
                       (int(parts[1]) << 4) |
                       (int(parts[2]) << 0))
 
-        rr = self.client.read_holding_registers(address=0x1000, count=23,
-                                                slave=self.slave_addr)
-        git_sha1 = regs_to_bytes(rr.registers)
+        git_sha1 = self.bus.read_holding_registers_binary(self.slave_addr,
+                                                          0x1000, 23)
 
-        return (info.information[1].decode(), fw_version_str, fw_version,
+        return (objs[1].value.decode(), fw_version_str, fw_version,
                 git_sha1.decode().strip())
 
     def set_comm_params(self, baud_rate, slave_addr):
@@ -106,21 +81,18 @@ class XHTISM:
         baud_rate = baud_rate // 4800
         assert baud_rate < 64
         assert slave_addr < 256
-        rr = self.client.write_registers(
-                address=0x1001, slave=self.slave_addr,
-                values=[(baud_rate << 8) | slave_addr, (2 << 8)]
-                )
-        assert not rr.isError()
+        self.bus.write_holding_registers_binary(self.slave_addr, 0x1001,
+                                                bytes([baud_rate, slave_addr,
+                                                       0x02, 0x00]))
 
     def get_coefficients(self):
         '''
         Returns the T and P IIR filter coefficients currently in-use by the
         sensor.  These values are saved on the sensor in nonvolatile storage.
         '''
-        rr = self.client.read_holding_registers(address=0x1002, count=1,
-                                                slave=self.slave_addr)
-        t_c = ((rr.registers[0] >> 8) & 0xFF)
-        p_c = ((rr.registers[0] >> 0) & 0xFF)
+        rsp = self.bus.read_holding_registers_binary(self.slave_addr, 0x1002, 1)
+        t_c = rsp[0]
+        p_c = rsp[1]
         return t_c, p_c
 
     def set_coefficients(self, t_c, p_c):
@@ -131,10 +103,8 @@ class XHTISM:
         '''
         assert t_c < 32
         assert p_c < 32
-        rr = self.client.write_registers(
-                address=0x1002, slave=self.slave_addr,
-                values=[(t_c << 8) | p_c])
-        assert not rr.isError()
+        self.bus.write_holding_registers_binary(self.slave_addr, 0x1002,
+                                                bytes([t_c, p_c]))
 
     def read_calibration_pages_raw(self):
         '''
@@ -144,9 +114,8 @@ class XHTISM:
         data = b''
         for i in range(CalPage.get_short_size() // 8):
             address = 0x2000 + i*4
-            rr = self.client.read_holding_registers(address=address, count=4,
-                                                    slave=self.slave_addr)
-            data += regs_to_bytes(rr.registers)
+            data += self.bus.read_holding_registers_binary(self.slave_addr,
+                                                           address, 4)
         pad = b'\xff' * (CalPage._EXPECTED_SIZE - len(data))
         return (data + pad,)
 
@@ -170,13 +139,9 @@ class XHTISM:
     def yield_measurements(self, poll_interval_sec=0.1, **_kwargs):
         self._halt_yield = False
         while not self._halt_yield:
-            rr = self.client.read_holding_registers(address=0, count=8,
-                                                    slave=self.slave_addr)
+            rsp = self.bus.read_holding_registers_binary(self.slave_addr, 0, 8)
 
-            ft = regs_to_bytes(rr.registers[:4])
-            fp = regs_to_bytes(rr.registers[4:8])
-            ft = struct.unpack('<d', ft)[0]
-            fp = struct.unpack('<d', fp)[0]
+            ft, fp = struct.unpack('<dd', rsp)
 
             psi = None
             if self.poly_psi is not None and ft and fp:

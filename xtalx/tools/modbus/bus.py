@@ -1,6 +1,7 @@
 # Copyright (c) 2024 by Phase Advanced Sensor Systems, Inc.
 # All rights reserved.
 import time
+import threading
 
 import xtalx.tools.serial
 
@@ -11,42 +12,48 @@ class ModbusException(Exception):
     pass
 
 
-class ResponseTimeoutException(ModbusException):
-    def __init__(self, rx_packet):
-        super().__init__()
-        self.rx_packet = rx_packet
-
-
-class BadCRCException(ModbusException):
-    def __init__(self, rx_packet, expected_crc):
-        super().__init__()
-        self.rx_packet    = rx_packet
-        self.expected_crc = expected_crc
-
-
-class BadAddressException(ModbusException):
-    def __init__(self, rx_packet):
-        super().__init__()
-        self.rx_packet = rx_packet
-
-
-class BadFunctionException(ModbusException):
-    def __init__(self, rx_packet):
-        super().__init__()
-        self.rx_packet = rx_packet
-
-
 class ResponseException(ModbusException):
-    def __init__(self, rx_packet, exception_number):
-        super().__init__()
-        self.rx_packet        = rx_packet
+    def __init__(self, rx_packet, **kwargs):
+        super().__init__(rx_packet.hex(), **kwargs)
+        self.rx_packet = rx_packet
+
+
+class ExceptionResponseException(ResponseException):
+    def __init__(self, rx_packet, exception_number, **kwargs):
+        super().__init__(rx_packet, **kwargs)
         self.exception_number = exception_number
 
 
-class ResponseOverflowException(ModbusException):
-    def __init__(self, rx_packet):
-        super().__init__()
-        self.rx_packet = rx_packet
+class ResponseTimeoutException(ResponseException):
+    pass
+
+
+class BadCRCException(ResponseException):
+    def __init__(self, rx_packet, expected_crc, **kwargs):
+        super().__init__(rx_packet, **kwargs)
+        self.expected_crc = expected_crc
+
+
+class BadAddressException(ResponseException):
+    pass
+
+
+class BadFunctionException(ResponseException):
+    pass
+
+
+class ResponseOverflowException(ResponseException):
+    pass
+
+
+class ResponseSyntaxException(ResponseException):
+    pass
+
+
+class DeviceIDObject:
+    def __init__(self, object_id, value):
+        self.object_id = object_id
+        self.value     = value
 
 
 class Bus:
@@ -116,6 +123,7 @@ class Bus:
     def __init__(self, intf, baud_rate, parity='E', **kwargs):
         self.serial = xtalx.tools.serial.from_intf(intf, baudrate=baud_rate,
                                                    parity=parity, **kwargs)
+        self.lock = threading.Lock()
 
     def _read_until_gap(self, prev_data):
         data = b''
@@ -147,12 +155,12 @@ class Bus:
         if data[1] & 0x7F != function_code:
             raise BadFunctionException(data)
         if data[1] & 0x80:
-            raise ResponseException(data, data[2])
+            raise ExceptionResponseException(data, data[2])
 
         # The response makes logical sense, we are golden.
         return data
 
-    def read_response(self, slave_addr, function_code, nbytes=None):
+    def _read_response(self, slave_addr, function_code, nbytes=None):
         '''
         Read the response from a target.  If nbytes is None, the response is
         variable-length and we use the inter-frame gap with an 0.1-second
@@ -188,7 +196,7 @@ class Bus:
 
         return self._process_response(slave_addr, function_code, nbytes, data)
 
-    def send_request(self, slave_addr, data):
+    def _send_request(self, slave_addr, data):
         '''
         Send a request to the target slave address.  The request data starts at
         the function code field; we will insert the address at the start and
@@ -211,6 +219,66 @@ class Bus:
         Performs a Read Device Identification request with the specified Read
         Device ID code and Object Id.  Since this returns variable-length data,
         we will wait for the inter-frame gap to detect the end of the PDU.
+
+        Returns a list of DeviceIDObject objects, which have object_id and
+        value fields corresponding to the same fields in the Modbus spec.
         '''
-        self.send_request(slave_addr, bytes([0x2B, 0x0E, read_code, object_id]))
-        return self.read_response(slave_addr, 0x2B)
+        with self.lock:
+            self._send_request(slave_addr, bytes([0x2B, 0x0E, read_code,
+                                                  object_id]))
+            rsp = self._read_response(slave_addr, 0x2B)
+
+        nobjs  = rsp[7]
+        objs   = []
+        offset = 8
+        for _ in range(nobjs):
+            object_id = rsp[offset]
+            size      = rsp[offset + 1]
+            value     = rsp[offset + 2: offset + 2 + size]
+            offset   += 2 + size
+            objs.append(DeviceIDObject(object_id, value))
+
+        return objs
+
+    def read_holding_registers_binary(self, slave_addr, address, nregs):
+        '''
+        Reads nregs 16-bit registers from the target device slave_addr starting
+        with register address.  The return value is the raw binary data in the
+        exact order it was streamed from the serial bus.  No splitting into
+        16-bit values or byte-swapping of any sort is done; this returns the
+        raw data.
+        '''
+        with self.lock:
+            self._send_request(slave_addr, bytes([0x03,
+                                                  (address >> 8) & 0xFF,
+                                                  address & 0xFF,
+                                                  (nregs >> 8) & 0xFF,
+                                                  nregs & 0xFF]))
+            rsp = self._read_response(slave_addr, 0x03, 2 + nregs * 2)
+        if rsp[2] != 2 * nregs:
+            raise ResponseSyntaxException(rsp)
+
+        return rsp[3:-2]
+
+    def write_holding_registers_binary(self, slave_addr, address, data):
+        '''
+        Writes data to the target device slave_addr at register address.  The
+        data is streamed out in order and no byte-swapping is performed.  Try
+        to keep writes short so that there is no danger of a write being broken
+        up in a kernel or adapter buffer.
+        '''
+        assert len(data) % 2 == 0
+        assert 1 <= len(data) <= 123
+        nregs = len(data) // 2
+        with self.lock:
+            self._send_request(slave_addr, bytes([0x10,
+                                                  (address >> 8) & 0xFF,
+                                                  address & 0xFF,
+                                                  (nregs >> 8) & 0xFF,
+                                                  nregs & 0xFF,
+                                                  len(data)]) + data)
+            rsp = self._read_response(slave_addr, 0x10, 5)
+        if ((rsp[2] << 8) | rsp[3]) != address:
+            raise ResponseSyntaxException(rsp)
+        if ((rsp[4] << 8) | rsp[5]) != nregs:
+            raise ResponseSyntaxException(rsp)
