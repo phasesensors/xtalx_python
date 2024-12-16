@@ -3,14 +3,8 @@
 
 
 def crc16_byte_reversed(v, P):
-    v = ((v >> 1) ^ P) if (v & 1) else (v >> 1)
-    v = ((v >> 1) ^ P) if (v & 1) else (v >> 1)
-    v = ((v >> 1) ^ P) if (v & 1) else (v >> 1)
-    v = ((v >> 1) ^ P) if (v & 1) else (v >> 1)
-    v = ((v >> 1) ^ P) if (v & 1) else (v >> 1)
-    v = ((v >> 1) ^ P) if (v & 1) else (v >> 1)
-    v = ((v >> 1) ^ P) if (v & 1) else (v >> 1)
-    v = ((v >> 1) ^ P) if (v & 1) else (v >> 1)
+    for _ in range(8):
+        v = (v >> 1) ^ (P * (v & 1))
     return v & 0xFFFF
 
 
