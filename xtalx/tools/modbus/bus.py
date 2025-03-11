@@ -177,7 +177,7 @@ class Bus:
         response, not including the address byte or CRC byte, but including
         the function code and all data that follows.
         '''
-        self.serial.timeout = 2
+        self.serial.timeout = 0.1
         data = b''
 
         # Read the address and function code bytes, bailing if there is a
@@ -218,7 +218,7 @@ class Bus:
         idle time.  Since we are the only master, the easiest way to do that is
         to just always sleep here first.  We use a 2ms timeout just to be safe.
         '''
-        time.sleep(0.03)
+        time.sleep(0.002)
         data  = bytes([slave_addr]) + data
         data += modbus_crc.compute_as_bytes(data)
         self.serial.flush()
@@ -242,7 +242,7 @@ class Bus:
                     rsp = self._read_response(slave_addr, 0x2B)
                     break
                 except ResponseTimeoutException:
-                    time.sleep(0.1)
+                    time.sleep(0.01)
 
         nobjs  = rsp[7]
         objs   = []
@@ -275,7 +275,7 @@ class Bus:
                     rsp = self._read_response(slave_addr, 0x03, 2 + nregs * 2)
                     break
                 except ResponseTimeoutException:
-                    time.sleep(0.1)
+                    time.sleep(0.01)
         if rsp[2] != 2 * nregs:
             raise ResponseSyntaxException(rsp)
 
@@ -303,7 +303,7 @@ class Bus:
                     rsp = self._read_response(slave_addr, 0x10, 5)
                     break
                 except ResponseTimeoutException:
-                    time.sleep(0.1)
+                    time.sleep(0.01)
         if ((rsp[2] << 8) | rsp[3]) != address:
             raise ResponseSyntaxException(rsp)
         if ((rsp[4] << 8) | rsp[5]) != nregs:
