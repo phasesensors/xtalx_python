@@ -235,10 +235,9 @@ class Bus:
         value fields corresponding to the same fields in the Modbus spec.
         '''
         with self.lock:
-            try:
-                rsp = self._read_response(slave_addr, 0x2B)
-            except ResponseTimeoutException:
-                pass
+            self._send_request(slave_addr, bytes([0x2B, 0x0E, read_code,
+                                                  object_id]))
+            rsp = self._read_response(slave_addr, 0x2B)
 
         nobjs  = rsp[7]
         objs   = []
