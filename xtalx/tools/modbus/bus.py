@@ -243,7 +243,6 @@ class Bus:
                     break
                 except ResponseTimeoutException:
                     print('Retrying read device ID...')
-                    raise
                     time.sleep(0.01)
 
         nobjs  = rsp[7]
@@ -278,7 +277,6 @@ class Bus:
                     break
                 except ResponseTimeoutException:
                     print('Retrying read holding registers binary...')
-                    raise
                     time.sleep(0.01)
         if rsp[2] != 2 * nregs:
             raise ResponseSyntaxException(rsp)
@@ -308,7 +306,6 @@ class Bus:
                     break
                 except ResponseTimeoutException:
                     print('Retrying write holding registers binary...')
-                    raise
                     time.sleep(0.01)
         if ((rsp[2] << 8) | rsp[3]) != address:
             raise ResponseSyntaxException(rsp)
