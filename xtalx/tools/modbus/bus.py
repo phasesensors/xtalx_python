@@ -242,6 +242,7 @@ class Bus:
                     rsp = self._read_response(slave_addr, 0x2B)
                     break
                 except ResponseTimeoutException:
+                    print('Retrying read device ID...')
                     time.sleep(0.01)
 
         nobjs  = rsp[7]
@@ -275,6 +276,7 @@ class Bus:
                     rsp = self._read_response(slave_addr, 0x03, 2 + nregs * 2)
                     break
                 except ResponseTimeoutException:
+                    print('Retrying read holding registers binary...')
                     time.sleep(0.01)
         if rsp[2] != 2 * nregs:
             raise ResponseSyntaxException(rsp)
@@ -303,6 +305,7 @@ class Bus:
                     rsp = self._read_response(slave_addr, 0x10, 5)
                     break
                 except ResponseTimeoutException:
+                    print('Retrying write holding registers binary...')
                     time.sleep(0.01)
         if ((rsp[2] << 8) | rsp[3]) != address:
             raise ResponseSyntaxException(rsp)
