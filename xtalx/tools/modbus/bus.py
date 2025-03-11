@@ -218,7 +218,7 @@ class Bus:
         idle time.  Since we are the only master, the easiest way to do that is
         to just always sleep here first.  We use a 2ms timeout just to be safe.
         '''
-        time.sleep(0.002)
+        time.sleep(0.003)
         data  = bytes([slave_addr]) + data
         data += modbus_crc.compute_as_bytes(data)
         self.serial.write(data)
