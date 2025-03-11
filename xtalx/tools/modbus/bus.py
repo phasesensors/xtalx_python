@@ -122,7 +122,8 @@ class Bus:
     '''
     def __init__(self, intf, baud_rate, parity='E', **kwargs):
         self.serial = xtalx.tools.serial.from_intf(intf, baudrate=baud_rate,
-                                                   parity=parity, **kwargs)
+                                                   parity=parity, spy=True,
+                                                   **kwargs)
         self.lock = threading.Lock()
 
     def _read_until_gap(self, prev_data):
