@@ -126,6 +126,14 @@ class Bus:
                                                    **kwargs)
         self.lock = threading.Lock()
 
+        self.serial.flush()
+
+        time.sleep(1)
+        self.serial.timeout = 0
+        while self.serial.read_all():
+            pass
+        self.serial.timeout = 1
+
     def _read_until_gap(self, prev_data):
         data = b''
         while True:
