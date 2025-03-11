@@ -18,4 +18,5 @@ disable=missing-module-docstring,
         broad-exception-raised,
         superfluous-parens,
         consider-using-f-string,
-        too-many-return-statements
+        too-many-return-statements,
+        too-many-positional-arguments
