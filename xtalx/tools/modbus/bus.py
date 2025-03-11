@@ -222,6 +222,7 @@ class Bus:
         data  = bytes([slave_addr]) + data
         data += modbus_crc.compute_as_bytes(data)
         self.serial.write(data)
+        self.serial.flush()
 
     def read_device_identification(self, slave_addr, read_code, object_id):
         '''
