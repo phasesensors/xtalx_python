@@ -218,7 +218,7 @@ class Bus:
         idle time.  Since we are the only master, the easiest way to do that is
         to just always sleep here first.  We use a 2ms timeout just to be safe.
         '''
-        time.sleep(0.003)
+        time.sleep(0.03)
         data  = bytes([slave_addr]) + data
         data += modbus_crc.compute_as_bytes(data)
         self.serial.flush()
@@ -235,9 +235,10 @@ class Bus:
         value fields corresponding to the same fields in the Modbus spec.
         '''
         with self.lock:
-            self._send_request(slave_addr, bytes([0x2B, 0x0E, read_code,
-                                                  object_id]))
-            rsp = self._read_response(slave_addr, 0x2B)
+            try:
+                rsp = self._read_response(slave_addr, 0x2B)
+            except ResponseTimeoutException:
+                pass
 
         nobjs  = rsp[7]
         objs   = []
