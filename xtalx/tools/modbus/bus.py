@@ -221,6 +221,7 @@ class Bus:
         time.sleep(0.003)
         data  = bytes([slave_addr]) + data
         data += modbus_crc.compute_as_bytes(data)
+        self.serial.flush()
         self.serial.write(data)
         self.serial.flush()
 
