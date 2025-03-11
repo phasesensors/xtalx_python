@@ -177,7 +177,7 @@ class Bus:
         response, not including the address byte or CRC byte, but including
         the function code and all data that follows.
         '''
-        self.serial.timeout = 0.1
+        self.serial.timeout = 2
         data = b''
 
         # Read the address and function code bytes, bailing if there is a
