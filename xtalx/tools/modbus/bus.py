@@ -235,9 +235,14 @@ class Bus:
         value fields corresponding to the same fields in the Modbus spec.
         '''
         with self.lock:
-            self._send_request(slave_addr, bytes([0x2B, 0x0E, read_code,
-                                                  object_id]))
-            rsp = self._read_response(slave_addr, 0x2B)
+            while True:
+                self._send_request(slave_addr, bytes([0x2B, 0x0E, read_code,
+                                                      object_id]))
+                try:
+                    rsp = self._read_response(slave_addr, 0x2B)
+                    break
+                except ResponseTimeoutException:
+                    time.sleep(0.1)
 
         nobjs  = rsp[7]
         objs   = []
@@ -260,12 +265,17 @@ class Bus:
         raw data.
         '''
         with self.lock:
-            self._send_request(slave_addr, bytes([0x03,
-                                                  (address >> 8) & 0xFF,
-                                                  address & 0xFF,
-                                                  (nregs >> 8) & 0xFF,
-                                                  nregs & 0xFF]))
-            rsp = self._read_response(slave_addr, 0x03, 2 + nregs * 2)
+            while True:
+                self._send_request(slave_addr, bytes([0x03,
+                                                      (address >> 8) & 0xFF,
+                                                      address & 0xFF,
+                                                      (nregs >> 8) & 0xFF,
+                                                      nregs & 0xFF]))
+                try:
+                    rsp = self._read_response(slave_addr, 0x03, 2 + nregs * 2)
+                    break
+                except ResponseTimeoutException:
+                    time.sleep(0.1)
         if rsp[2] != 2 * nregs:
             raise ResponseSyntaxException(rsp)
 
@@ -282,13 +292,18 @@ class Bus:
         assert 1 <= len(data) <= 123
         nregs = len(data) // 2
         with self.lock:
-            self._send_request(slave_addr, bytes([0x10,
-                                                  (address >> 8) & 0xFF,
-                                                  address & 0xFF,
-                                                  (nregs >> 8) & 0xFF,
-                                                  nregs & 0xFF,
-                                                  len(data)]) + data)
-            rsp = self._read_response(slave_addr, 0x10, 5)
+            while True:
+                self._send_request(slave_addr, bytes([0x10,
+                                                      (address >> 8) & 0xFF,
+                                                      address & 0xFF,
+                                                      (nregs >> 8) & 0xFF,
+                                                      nregs & 0xFF,
+                                                      len(data)]) + data)
+                try:
+                    rsp = self._read_response(slave_addr, 0x10, 5)
+                    break
+                except ResponseTimeoutException:
+                    time.sleep(0.1)
         if ((rsp[2] << 8) | rsp[3]) != address:
             raise ResponseSyntaxException(rsp)
         if ((rsp[4] << 8) | rsp[5]) != nregs:
