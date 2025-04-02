@@ -40,7 +40,7 @@ def main(rv):
 
     # Monitor the sensor.
     logging.info('%s: Monitoring...', xhtism.serial_num)
-    for m in xhtism.yield_measurements(poll_interval_sec=2):
+    for m in xhtism.yield_measurements(poll_interval_sec=0.1):
         if idb:
             point = m.to_influx_point()
             if point['fields']:
