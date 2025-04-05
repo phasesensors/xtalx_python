@@ -366,6 +366,24 @@ class Measurement:
             fields['dac'] = float(self.dac)
         return p
 
+    def to_stsdb_points(self, time_ns=None):
+        time_ns = time_ns or time.time_ns()
+        p = {
+            'time_ns'          : time_ns,
+            'pressure_psi'     : self.pressure_psi,
+            'temp_c'           : self.temp_c,
+            'pressure_freq_hz' : self.pressure_freq,
+            'temp_freq_hz'     : self.temp_freq,
+        }
+        lp = {
+            'time_ns'          : time_ns,
+            'pressure_psi'     : self.lores_pressure_psi,
+            'temp_c'           : self.lores_temp_c,
+            'pressure_freq_hz' : self.lores_pressure_freq,
+            'temp_freq_hz'     : self.lores_temp_freq,
+        }
+        return p, lp
+
 
 class XTI:
     TELEMETRY_EP    = 0x81
