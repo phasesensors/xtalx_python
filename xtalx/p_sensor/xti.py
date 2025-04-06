@@ -367,7 +367,7 @@ class Measurement:
         return p
 
     def to_stsdb_points(self, time_ns=None):
-        time_ns = time_ns or time.time_ns()
+        time_ns = time_ns or self.sensor.time_ns_increasing()
         p = {
             'time_ns'          : time_ns,
             'pressure_psi'     : self.pressure_psi,
@@ -395,10 +395,11 @@ class XTI:
     XTI object that can be used to communicate with a sensor.
     '''
     def __init__(self, usb_dev):
-        self.usb_dev     = usb_dev
-        self.lock        = threading.RLock()
-        self._halt_yield = True
-        self.thread      = None
+        self.usb_dev      = usb_dev
+        self.lock         = threading.RLock()
+        self._halt_yield  = True
+        self.thread       = None
+        self.last_time_ns = 0
 
         try:
             self.serial_num = usb_dev.serial_number
@@ -587,3 +588,11 @@ class XTI:
         '''
         self._halt_yield = True
         self.join_read()
+
+    def time_ns_increasing(self):
+        '''
+        Returns a time value in nanoseconds that is guaranteed to increase
+        after every single call.  This function is not thread-safe.
+        '''
+        self.last_time_ns = t = max(time.time_ns(), self.last_time_ns + 1)
+        return t
