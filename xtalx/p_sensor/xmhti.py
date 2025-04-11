@@ -138,6 +138,19 @@ class Measurement:
             fields['lores_temp_c'] = self.lores_temp_c
         return p
 
+    def to_combined_stsdb_point(self, time_ns=None):
+        return {
+            'time_ns'                : time_ns or self.t_ns,
+            'pressure_psi'           : self.pressure_psi,
+            'temp_c'                 : self.temp_c,
+            'pressure_freq_hz'       : self.fp,
+            'temp_freq_hz'           : self.ft,
+            'lores_pressure_psi'     : self.lores_pressure_psi,
+            'lores_temp_c'           : self.lores_temp_c,
+            'lores_pressure_freq_hz' : self.lfp,
+            'lores_temp_freq_hz'     : self.lft,
+        }
+
 
 class CommandException(Exception):
     def __init__(self, rsp, rx_data):
