@@ -92,12 +92,20 @@ class Measurement:
         self.lfp    = lfp if not math.isnan(lfp) else 0
 
         self.pressure_psi = None
-        if sensor.poly_psi is not None and self.ft and self.fp:
-            self.pressure_psi = sensor.poly_psi(self.fp, self.ft)
+        self.lores_pressure_psi = None
+        if sensor.poly_psi is not None:
+            if self.ft and self.fp:
+                self.pressure_psi = sensor.poly_psi(self.fp, self.ft)
+            if self.lft and self.lfp:
+                self.lores_pressure_psi = sensor.poly_psi(self.lfp, self.lft)
 
         self.temp_c = None
-        if sensor.poly_temp is not None and self.ft:
-            self.temp_c = sensor.poly_temp(self.ft)
+        self.lores_temp_c = None
+        if sensor.poly_temp is not None:
+            if self.ft:
+                self.temp_c = sensor.poly_temp(self.ft)
+            if self.lft:
+                self.lores_temp_c = sensor.poly_temp(self.lft)
 
     @staticmethod
     def from_cal_point(sensor, t_ns, cp):
@@ -124,6 +132,10 @@ class Measurement:
             fields['pressure_psi'] = float(self.pressure_psi)
         if self.temp_c is not None:
             fields['temp_c'] = self.temp_c
+        if self.lores_pressure_psi is not None:
+            fields['lores_pressure_psi'] = float(self.lores_pressure_psi)
+        if self.lores_temp_c is not None:
+            fields['lores_temp_c'] = self.lores_temp_c
         return p
 
 
