@@ -17,10 +17,11 @@ class XHTISM:
     def __init__(self, intf, baud_rate=115200, slave_addr=0x80):
         assert intf is not None
 
-        self.intf        = intf
-        self.slave_addr  = slave_addr
-        self.baud_rate   = baud_rate
-        self._halt_yield = True
+        self.intf         = intf
+        self.slave_addr   = slave_addr
+        self.baud_rate    = baud_rate
+        self._halt_yield  = True
+        self.last_time_ns = 0
 
         self.bus = xtalx.tools.modbus.Bus(intf, baud_rate=baud_rate, parity='E')
 
@@ -159,3 +160,11 @@ class XHTISM:
 
     def halt_yield(self):
         self._halt_yield = True
+
+    def time_ns_increasing(self):
+        '''
+        Returns a time value in nanoseconds that is guaranteed to increase
+        after every single call.  This function is not thread-safe.
+        '''
+        self.last_time_ns = t = max(time.time_ns(), self.last_time_ns + 1)
+        return t
