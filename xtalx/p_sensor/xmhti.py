@@ -199,8 +199,9 @@ class XMHTI:
     CAL_EP = 0x83
 
     def __init__(self, usb_dev):
-        self.usb_dev    = usb_dev
-        self.tag        = random.randint(0, 65535)
+        self.usb_dev      = usb_dev
+        self.tag          = random.randint(0, 65535)
+        self.last_time_ns = 0
 
         try:
             self.serial_num = usb_dev.serial_number
@@ -456,6 +457,8 @@ class XMHTI:
         '''
         data = self._read_measurement(timeout=1)
         t_ns = time.time_ns()
+        if t_ns <= self.last_time_ns:
+            t_ns = self.last_time_ns + 1
         n_queued = struct.unpack('<I', data[:4])[0]
         assert ((len(data) - 8) % CalPoint._STRUCT.size) == 0
         N = (len(data) - 8) // CalPoint._STRUCT.size
@@ -465,6 +468,8 @@ class XMHTI:
                     t_ns + (i - 100 - n_queued) * 100000000,
                     CalPoint.unpack_from(data, 8 + i * CalPoint._STRUCT.size)
                 ) for i in range(N)]
+
+        self.last_time_ns = ms[-1].t_ns
 
         if n_queued >= 100:
             return ms + self.read_measurements()
