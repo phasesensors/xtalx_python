@@ -384,6 +384,20 @@ class Measurement:
         }
         return p, lp
 
+    def to_combined_stsdb_point(self, time_ns=None):
+        time_ns = time_ns or self.sensor.time_ns_increasing()
+        return {
+            'time_ns'                : time_ns,
+            'pressure_psi'           : self.pressure_psi,
+            'temp_c'                 : self.temp_c,
+            'pressure_freq_hz'       : self.pressure_freq,
+            'temp_freq_hz'           : self.temp_freq,
+            'lores_pressure_psi'     : self.lores_pressure_psi,
+            'lores_temp_c'           : self.lores_temp_c,
+            'lores_pressure_freq_hz' : self.lores_pressure_freq,
+            'lores_temp_freq_hz'     : self.lores_temp_freq,
+        }
+
 
 class XTI:
     TELEMETRY_EP    = 0x81
