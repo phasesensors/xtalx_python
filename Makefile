@@ -1,6 +1,6 @@
 # Copyright (c) 2021-2024 by Phase Advanced Sensor Systems Corp.
 MODULE      := xtalx
-MODULE_VERS := 1.2.9
+MODULE_VERS := 1.3.0
 MODULE_DEPS :=
 MODULES := \
 	setup.cfg \
@@ -46,11 +46,11 @@ lint:
 
 .PHONY: install
 install: $(WHEEL_PATH) | uninstall
-	sudo $(PYTHON) -m pip install $(WHEEL_PATH)
+	sudo $(PYTHON) -m pip install $(WHEEL_PATH) --break-system-packages
 
 .PHONY: uninstall
 uninstall:
-	sudo $(PYTHON) -m pip uninstall -y $(MODULE)
+	sudo $(PYTHON) -m pip uninstall -y $(MODULE) --break-system-packages
 
 .PHONY: packages
 packages: $(WHEEL_PATH)

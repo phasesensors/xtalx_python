@@ -366,6 +366,38 @@ class Measurement:
             fields['dac'] = float(self.dac)
         return p
 
+    def to_stsdb_points(self, time_ns=None):
+        time_ns = time_ns or self.sensor.time_ns_increasing()
+        p = {
+            'time_ns'          : time_ns,
+            'pressure_psi'     : self.pressure_psi,
+            'temp_c'           : self.temp_c,
+            'pressure_freq_hz' : self.pressure_freq,
+            'temp_freq_hz'     : self.temp_freq,
+        }
+        lp = {
+            'time_ns'          : time_ns,
+            'pressure_psi'     : self.lores_pressure_psi,
+            'temp_c'           : self.lores_temp_c,
+            'pressure_freq_hz' : self.lores_pressure_freq,
+            'temp_freq_hz'     : self.lores_temp_freq,
+        }
+        return p, lp
+
+    def to_combined_stsdb_point(self, time_ns=None):
+        time_ns = time_ns or self.sensor.time_ns_increasing()
+        return {
+            'time_ns'                : time_ns,
+            'pressure_psi'           : self.pressure_psi,
+            'temp_c'                 : self.temp_c,
+            'pressure_freq_hz'       : self.pressure_freq,
+            'temp_freq_hz'           : self.temp_freq,
+            'lores_pressure_psi'     : self.lores_pressure_psi,
+            'lores_temp_c'           : self.lores_temp_c,
+            'lores_pressure_freq_hz' : self.lores_pressure_freq,
+            'lores_temp_freq_hz'     : self.lores_temp_freq,
+        }
+
 
 class XTI:
     TELEMETRY_EP    = 0x81
@@ -377,10 +409,11 @@ class XTI:
     XTI object that can be used to communicate with a sensor.
     '''
     def __init__(self, usb_dev):
-        self.usb_dev     = usb_dev
-        self.lock        = threading.RLock()
-        self._halt_yield = True
-        self.thread      = None
+        self.usb_dev      = usb_dev
+        self.lock         = threading.RLock()
+        self._halt_yield  = True
+        self.thread       = None
+        self.last_time_ns = 0
 
         try:
             self.serial_num = usb_dev.serial_number
@@ -569,3 +602,11 @@ class XTI:
         '''
         self._halt_yield = True
         self.join_read()
+
+    def time_ns_increasing(self):
+        '''
+        Returns a time value in nanoseconds that is guaranteed to increase
+        after every single call.  This function is not thread-safe.
+        '''
+        self.last_time_ns = t = max(time.time_ns(), self.last_time_ns + 1)
+        return t

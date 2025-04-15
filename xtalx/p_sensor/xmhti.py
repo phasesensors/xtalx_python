@@ -92,12 +92,20 @@ class Measurement:
         self.lfp    = lfp if not math.isnan(lfp) else 0
 
         self.pressure_psi = None
-        if sensor.poly_psi is not None and self.ft and self.fp:
-            self.pressure_psi = sensor.poly_psi(self.fp, self.ft)
+        self.lores_pressure_psi = None
+        if sensor.poly_psi is not None:
+            if self.ft and self.fp:
+                self.pressure_psi = sensor.poly_psi(self.fp, self.ft)
+            if self.lft and self.lfp:
+                self.lores_pressure_psi = sensor.poly_psi(self.lfp, self.lft)
 
         self.temp_c = None
-        if sensor.poly_temp is not None and self.ft:
-            self.temp_c = sensor.poly_temp(self.ft)
+        self.lores_temp_c = None
+        if sensor.poly_temp is not None:
+            if self.ft:
+                self.temp_c = sensor.poly_temp(self.ft)
+            if self.lft:
+                self.lores_temp_c = sensor.poly_temp(self.lft)
 
     @staticmethod
     def from_cal_point(sensor, t_ns, cp):
@@ -124,7 +132,24 @@ class Measurement:
             fields['pressure_psi'] = float(self.pressure_psi)
         if self.temp_c is not None:
             fields['temp_c'] = self.temp_c
+        if self.lores_pressure_psi is not None:
+            fields['lores_pressure_psi'] = float(self.lores_pressure_psi)
+        if self.lores_temp_c is not None:
+            fields['lores_temp_c'] = self.lores_temp_c
         return p
+
+    def to_combined_stsdb_point(self, time_ns=None):
+        return {
+            'time_ns'                : time_ns or self.t_ns,
+            'pressure_psi'           : self.pressure_psi,
+            'temp_c'                 : self.temp_c,
+            'pressure_freq_hz'       : self.fp,
+            'temp_freq_hz'           : self.ft,
+            'lores_pressure_psi'     : self.lores_pressure_psi,
+            'lores_temp_c'           : self.lores_temp_c,
+            'lores_pressure_freq_hz' : self.lfp,
+            'lores_temp_freq_hz'     : self.lft,
+        }
 
 
 class CommandException(Exception):
@@ -187,8 +212,9 @@ class XMHTI:
     CAL_EP = 0x83
 
     def __init__(self, usb_dev):
-        self.usb_dev    = usb_dev
-        self.tag        = random.randint(0, 65535)
+        self.usb_dev      = usb_dev
+        self.tag          = random.randint(0, 65535)
+        self.last_time_ns = 0
 
         try:
             self.serial_num = usb_dev.serial_number
@@ -444,6 +470,8 @@ class XMHTI:
         '''
         data = self._read_measurement(timeout=1)
         t_ns = time.time_ns()
+        if t_ns <= self.last_time_ns:
+            t_ns = self.last_time_ns + 1
         n_queued = struct.unpack('<I', data[:4])[0]
         assert ((len(data) - 8) % CalPoint._STRUCT.size) == 0
         N = (len(data) - 8) // CalPoint._STRUCT.size
@@ -453,6 +481,8 @@ class XMHTI:
                     t_ns + (i - 100 - n_queued) * 100000000,
                     CalPoint.unpack_from(data, 8 + i * CalPoint._STRUCT.size)
                 ) for i in range(N)]
+
+        self.last_time_ns = ms[-1].t_ns
 
         if n_queued >= 100:
             return ms + self.read_measurements()
