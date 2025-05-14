@@ -5,6 +5,7 @@ import time
 import os
 
 import xtalx.p_sensor
+from xtalx.tools.iter import prange
 from . import xmhti_qspi_decode
 
 
@@ -50,44 +51,6 @@ def main(args):
     print('        VDD: %.3f V' % (vs.vdd_mv / 1000))
     print('       VUSB: %.3f V' % (vs.vbus_mv * 2 / 1000))
 
-    # If requested, perform a chip erase.
-    if args.chip_erase_start:
-        print('Sending Chip Erase command...')
-        xmhti.start_erase_qspi_flash()
-
-    # If requested, wait for a chip erase to complete.
-    if args.chip_erase_wait_done:
-        print('Waiting for Chip Erase to complete...')
-        t0 = time.time()
-        while True:
-            qes = xmhti.get_qspi_erase_status()
-            if not qes.erase_in_progress:
-                break
-
-        t1 = time.time()
-        print('Erase completed in %.2f seconds (ER Reg=0x%02X).' %
-              (t1 - t0, qes.extended_read_register))
-
-    # If requested, store a timestamp.
-    if args.timestamp:
-        t = xmhti.record_timestamp()
-        print('Wrote timestamp %u.' % t)
-
-    # If necessary, read the flash log.
-    if args.read_flash_log:
-        print('Reading flash log...')
-        t0 = time.time()
-        flash_log_data = xmhti.read_flash_log()
-        dt = time.time() - t0
-        if dt > 0:
-            print('Read %u bytes in %.2f seconds (%.2f K/s).'
-                  % (len(flash_log_data), dt, len(flash_log_data) / (1024*dt)))
-        else:
-            print('Read %u bytes.' % len(flash_log_data))
-
-        with open(args.read_flash_log, 'wb') as f:
-            f.write(flash_log_data)
-
     # If necessary, read the flash.
     if args.read_qspi or args.decode_qspi:
         print('Reading QSPI flash...')
@@ -115,6 +78,54 @@ def main(args):
         xmhti_qspi_decode.process_image(xmhti.serial_num, args.decode_qspi,
                                         qspi_data, bs.hse_freq, 0,
                                         xmhti.poly_psi, xmhti.poly_temp)
+
+    # If requested, perform a chip erase.
+    if args.chip_erase_start:
+        print('Sending Chip Erase command...')
+        xmhti.start_erase_qspi_flash()
+
+    # If requested, wait for a chip erase to complete.
+    if args.chip_erase_wait_done:
+        print('Waiting for Chip Erase to complete...')
+        t0 = time.time()
+        while True:
+            qes = xmhti.get_qspi_erase_status()
+            if not qes.erase_in_progress:
+                break
+
+        t1 = time.time()
+        print('Erase completed in %.2f seconds (ER Reg=0x%02X).' %
+              (t1 - t0, qes.extended_read_register))
+
+    # If request, write a file into flash contents.
+    if args.write_qspi:
+        with open(args.write_qspi, 'rb') as f:
+            data = f.read()
+        assert len(data) % 256 == 0
+        nchunks = len(data) // 256
+        for i in prange(nchunks):
+            addr = i * 256
+            xmhti.write_qspi_flash(addr, data[addr:addr + 256])
+
+    # If requested, store a timestamp.
+    if args.timestamp:
+        t = xmhti.record_timestamp()
+        print('Wrote timestamp %u.' % t)
+
+    # If necessary, read the flash log.
+    if args.read_flash_log:
+        print('Reading flash log...')
+        t0 = time.time()
+        flash_log_data = xmhti.read_flash_log()
+        dt = time.time() - t0
+        if dt > 0:
+            print('Read %u bytes in %.2f seconds (%.2f K/s).'
+                  % (len(flash_log_data), dt, len(flash_log_data) / (1024*dt)))
+        else:
+            print('Read %u bytes.' % len(flash_log_data))
+
+        with open(args.read_flash_log, 'wb') as f:
+            f.write(flash_log_data)
 
     # If requested, clear the chip erase journal.
     if args.clear_erase_journal:
@@ -157,6 +168,7 @@ def _main():
     parser.add_argument('--chip-erase-wait-done', action='store_true')
     parser.add_argument('--timestamp', action='store_true')
     parser.add_argument('--read-qspi')
+    parser.add_argument('--write-qspi')
     parser.add_argument('--read-flash-log')
     parser.add_argument('--decode-qspi')
     parser.add_argument('--clear-erase-journal', action='store_true')
