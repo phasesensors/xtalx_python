@@ -32,7 +32,7 @@ def match_xmhti(d):
         return False
 
     # Old-style XMHTI are explicit about class and sub-class.
-    if d.bDeviceClass == 0xFF and b.bDeviceSubClass == 0x05:
+    if d.bDeviceClass == 0xFF and d.bDeviceSubClass == 0x05:
         return True
 
     # New-style XMHTI adhere to iAP.

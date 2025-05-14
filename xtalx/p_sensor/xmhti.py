@@ -48,6 +48,7 @@ class Opcode(IntEnum):
     READ_QSPI_FLASH          = 0x0101
     START_ERASE_QSPI_FLASH   = 0x0102
     GET_QSPI_ERASE_STATUS    = 0x0103
+    WRITE_QSPI_FLASH         = 0x0104
 
     # Flash commands.
     FLASH_READ_CAL           = 0xBA61
@@ -445,6 +446,13 @@ class XMHTI:
     def get_qspi_erase_status(self):
         rsp, _ = self._exec_command(Opcode.GET_QSPI_ERASE_STATUS)
         return QSPIEraseStatus(rsp.params[0], rsp.params[1])
+
+    def write_qspi_flash(self, addr, data):
+        assert len(data) == 256
+        assert (addr & 0xFF0000FF) == 0
+        self._exec_command(Opcode.WRITE_QSPI_FLASH,
+                           [addr, 0xAC1DE8F0, 0x18F37889],
+                           bulk_data=data)
 
     def _read_measurement(self, timeout=10):
         '''
