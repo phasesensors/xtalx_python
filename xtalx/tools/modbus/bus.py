@@ -42,7 +42,26 @@ class BadFunctionException(ResponseException):
     pass
 
 
+class BabbleException(ResponseException):
+    # Target replied too quickly, before t3.5 expired.
+    pass
+
+
 class ResponseOverflowException(ResponseException):
+    pass
+
+
+class ResponseUnderflowException(ResponseException):
+    pass
+
+
+class ResponseInterruptedException(ResponseException):
+    # We received some characters, then t1.5 expired, then we received more
+    # characters.
+    pass
+
+
+class ResponseFramingErrorException(ResponseException):
     pass
 
 
