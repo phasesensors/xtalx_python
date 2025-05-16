@@ -3,7 +3,7 @@
 import time
 import struct
 
-import xtalx.tools.modbus
+import xtalx.tools.modbus.serial
 
 from .xti import Measurement
 from .cal_page import CalPage
@@ -23,7 +23,8 @@ class XHTISM:
         self._halt_yield  = True
         self.last_time_ns = 0
 
-        self.bus = xtalx.tools.modbus.Bus(intf, baud_rate=baud_rate, parity='E')
+        self.bus = xtalx.tools.modbus.serial.Bus(intf, baud_rate=baud_rate,
+                                                 parity='E')
 
         (self.serial_num,
          self.fw_version_str,
