@@ -3,8 +3,10 @@
 # All rights reserved.
 import argparse
 import logging
+import time
 
 import xtalx.p_sensor
+import xtalx.modbus_adapter
 import xtalx.tools.modbus.serial
 
 
@@ -12,10 +14,25 @@ import xtalx.tools.modbus.serial
 LOG_LEVEL = logging.INFO
 
 
+def make_sensor(args):
+    if args.intf:
+        bus = xtalx.tools.modbus.serial.Bus(args.intf, args.baud_rate)
+        return xtalx.p_sensor.XHTISM(bus, int(args.addr, 0))
+
+    dev = xtalx.modbus_adapter.find_one_mba(
+            serial_number=args.modbus_adapter_serial_number)
+    if dev is not None:
+        bus = xtalx.modbus_adapter.make_mba(dev, baud_rate=args.baud_rate)
+        bus.set_vext(True)
+        time.sleep(0.1)
+        return xtalx.p_sensor.XHTISM(bus, int(args.addr, 0))
+
+    raise Exception('No matching devices.')
+
+
 def main(args):
     # Make the sensor.
-    bus = xtalx.tools.modbus.serial.Bus(args.intf, args.baud_rate)
-    xhtism = xtalx.p_sensor.XHTISM(bus, int(args.addr, 0))
+    xhtism = make_sensor(args)
     logging.info('%s: Found sensor with firmware version %s, git SHA1 %s',
                  xhtism.serial_num, xhtism.fw_version_str, xhtism.git_sha1)
     t_c, p_c = xhtism.get_coefficients()
@@ -51,13 +68,14 @@ def _main():
     logging.getLogger().setLevel(LOG_LEVEL)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--intf', '-i', required=True)
+    parser.add_argument('--intf', '-i')
     parser.add_argument('--baud-rate', '-b', default=115200, type=int)
     parser.add_argument('--addr', '-a', default='0x80')
     parser.add_argument('--set-addr')
     parser.add_argument('--set-baud-rate', type=int)
     parser.add_argument('--set-t-coefficient')
     parser.add_argument('--set-p-coefficient')
+    parser.add_argument('--modbus-adapter-serial-number', '-s')
 
     try:
         main(parser.parse_args())
