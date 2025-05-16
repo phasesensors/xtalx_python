@@ -3,8 +3,6 @@
 import time
 import struct
 
-import xtalx.tools.modbus.serial
-
 from .xti import Measurement
 from .cal_page import CalPage
 
@@ -14,17 +12,11 @@ class XHTISM:
     This is a driver for the high-temperature XHTIS sensor built with Modbus
     firmware.
     '''
-    def __init__(self, intf, baud_rate=115200, slave_addr=0x80):
-        assert intf is not None
-
-        self.intf         = intf
+    def __init__(self, bus, slave_addr=0x80):
+        self.bus          = bus
         self.slave_addr   = slave_addr
-        self.baud_rate    = baud_rate
         self._halt_yield  = True
         self.last_time_ns = 0
-
-        self.bus = xtalx.tools.modbus.serial.Bus(intf, baud_rate=baud_rate,
-                                                 parity='E')
 
         (self.serial_num,
          self.fw_version_str,

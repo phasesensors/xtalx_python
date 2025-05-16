@@ -7,6 +7,7 @@ import logging
 from xtalx.tools.config import Config
 from xtalx.tools.influxdb import InfluxDBPushQueue
 import xtalx.p_sensor
+import xtalx.tools.modbus.serial
 
 
 # Verbosity
@@ -15,7 +16,8 @@ LOG_LEVEL = logging.INFO
 
 def main(rv):
     # Make the sensor.
-    xhtism = xtalx.p_sensor.XHTISM(rv.intf, rv.baud_rate, int(rv.addr, 0))
+    bus = xtalx.tools.modbus.serial.Bus(rv.intf, rv.baud_rate)
+    xhtism = xtalx.p_sensor.XHTISM(bus, int(rv.addr, 0))
     logging.info('%s: Found sensor with firmware version %s, git SHA1 %s',
                  xhtism.serial_num, xhtism.fw_version_str, xhtism.git_sha1)
     t_c, p_c = xhtism.get_coefficients()

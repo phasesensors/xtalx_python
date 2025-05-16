@@ -8,6 +8,7 @@ import time
 import glotlib
 
 import xtalx.p_sensor
+import xtalx.tools.modbus.serial
 from xtalx.tools.math import XYSeries
 
 
@@ -194,8 +195,8 @@ def main(args):
         dev = xtalx.p_sensor.find_one_xti(serial_number=args.serial_number)
         x   = xtalx.p_sensor.make(dev)
     else:
-        x = xtalx.p_sensor.XHTISM(args.intf, args.baud_rate,
-                                  int(args.modbus_addr, 0))
+        bus = xtalx.tools.modbus.serial.Bus(args.intf, args.baud_rate)
+        x = xtalx.p_sensor.XHTISM(bus, int(args.modbus_addr, 0))
 
     if args.csv_file:
         csv_file = open(  # pylint: disable=R1732

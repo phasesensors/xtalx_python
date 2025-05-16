@@ -5,6 +5,7 @@ import argparse
 import logging
 
 import xtalx.p_sensor
+import xtalx.tools.modbus.serial
 
 
 # Verbosity
@@ -13,7 +14,8 @@ LOG_LEVEL = logging.INFO
 
 def main(args):
     # Make the sensor.
-    xhtism = xtalx.p_sensor.XHTISM(args.intf, args.baud_rate, int(args.addr, 0))
+    bus = xtalx.tools.modbus.serial.Bus(args.intf, args.baud_rate)
+    xhtism = xtalx.p_sensor.XHTISM(bus, int(args.addr, 0))
     logging.info('%s: Found sensor with firmware version %s, git SHA1 %s',
                  xhtism.serial_num, xhtism.fw_version_str, xhtism.git_sha1)
     t_c, p_c = xhtism.get_coefficients()
