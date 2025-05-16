@@ -29,7 +29,7 @@ def find_one(**kwargs):
         raise Exception('Multiple matching devices: %s' %
                         ', '.join(ud.serial_number for ud in usb_devs))
     if not usb_devs:
-        raise Exception('No matching devices.')
+        return None
     return usb_devs[0]
 
 
