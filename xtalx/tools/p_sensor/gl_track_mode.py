@@ -8,6 +8,8 @@ import time
 import glotlib
 
 import xtalx.p_sensor
+import xtalx.modbus_adapter
+import xtalx.tools.modbus.serial
 from xtalx.tools.math import XYSeries
 
 
@@ -189,13 +191,27 @@ def measure_thread(x, tw, csv_file):
             csv_file.flush()
 
 
+def make_sensor(args):
+    if args.intf:
+        bus = xtalx.tools.modbus.serial.Bus(args.intf, args.baud_rate)
+        return xtalx.p_sensor.XHTISM(bus, int(args.modbus_addr, 0))
+
+    dev = xtalx.p_sensor.find_one_xti(serial_number=args.serial_number)
+    if dev is not None:
+        return xtalx.p_sensor.make(dev)
+
+    dev = xtalx.modbus_adapter.find_one_mba(serial_number=args.serial_number)
+    if dev is not None:
+        bus = xtalx.modbus_adapter.make_mba(dev, baud_rate=args.baud_rate)
+        bus.set_vext(True)
+        time.sleep(0.1)
+        return xtalx.p_sensor.XHTISM(bus, int(args.modbus_addr, 0))
+
+    raise Exception('No matching devices.')
+
+
 def main(args):
-    if not args.intf:
-        dev = xtalx.p_sensor.find_one_xti(serial_number=args.serial_number)
-        x   = xtalx.p_sensor.make(dev)
-    else:
-        x = xtalx.p_sensor.XHTISM(args.intf, args.baud_rate,
-                                  int(args.modbus_addr, 0))
+    x = make_sensor(args)
 
     if args.csv_file:
         csv_file = open(  # pylint: disable=R1732
