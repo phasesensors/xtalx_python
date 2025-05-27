@@ -311,9 +311,10 @@ class Measurement:
     def tostring(self, verbose=False):
         s = '%s: ' % self.sensor
         if verbose:
-            s += ('F 0x%04X pf %s tf %s p %s t %s lpf %s ltf %s lp %s lt %s '
-                  'mt %s' %
-                  (self.flags, self.pressure_freq, self.temp_freq,
+            if self.flags is not None:
+                s += 'F 0x%04X ' % self.flags
+            s += ('pf %s tf %s p %s t %s lpf %s ltf %s lp %s lt %s mt %s' %
+                  (self.pressure_freq, self.temp_freq,
                    self.pressure_psi, self.temp_c, self.lores_pressure_freq,
                    self.lores_temp_freq, self.lores_pressure_psi,
                    self.lores_temp_c, self.mcu_temp_c))
