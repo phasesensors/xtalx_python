@@ -33,13 +33,13 @@ def sensor_thread(xhtism, idb):
 def main(rv):
     # Read the configuration file.
     if rv.config:
-        logging.info('%s: Reading configuration...', xhtism.serial_num)
+        logging.info('Reading configuration...')
         with open(rv.config, encoding='utf8') as f:
             c = Config(f.readlines(), ['influx_host', 'influx_user',
                                        'influx_password', 'influx_database'])
 
         # Open a connection to InfluxDB.
-        logging.info('%s: Connecting to InfluxDB...', xhtism.serial_num)
+        logging.info('Connecting to InfluxDB...')
         idb = InfluxDBPushQueue(c.influx_host, 8086, c.influx_user,
                                 c.influx_password, database=c.influx_database,
                                 ssl=True, verify_ssl=True,
