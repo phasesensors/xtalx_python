@@ -130,25 +130,26 @@ class XHTISM:
         (cp,) = self.read_calibration_pages()
         return cp if cp.is_valid() else None
 
+    def read_measurement(self):
+        rsp = self.bus.read_holding_registers_binary(self.slave_addr, 0, 8)
+
+        ft, fp = struct.unpack('<dd', rsp)
+
+        psi = None
+        if self.poly_psi is not None and ft and fp:
+            psi = self.poly_psi(fp, ft)
+
+        temp_c = None
+        if self.poly_temp is not None and ft:
+            temp_c = self.poly_temp(ft)
+
+        return Measurement(self, None, psi, temp_c, fp, ft, None, None,
+                           None, None, None, None, None, None, None)
+
     def yield_measurements(self, poll_interval_sec=0.1, **_kwargs):
         self._halt_yield = False
         while not self._halt_yield:
-            rsp = self.bus.read_holding_registers_binary(self.slave_addr, 0, 8)
-
-            ft, fp = struct.unpack('<dd', rsp)
-
-            psi = None
-            if self.poly_psi is not None and ft and fp:
-                psi = self.poly_psi(fp, ft)
-
-            temp_c = None
-            if self.poly_temp is not None and ft:
-                temp_c = self.poly_temp(ft)
-
-            m = Measurement(self, None, psi, temp_c, fp, ft, None, None,
-                            None, None, None, None, None, None, None)
-            yield m
-
+            yield self.read_measurement()
             time.sleep(poll_interval_sec)
 
     def halt_yield(self):
