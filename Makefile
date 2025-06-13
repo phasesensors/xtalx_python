@@ -1,6 +1,6 @@
 # Copyright (c) 2021-2024 by Phase Advanced Sensor Systems Corp.
 MODULE      := xtalx
-MODULE_VERS := 1.3.1
+MODULE_VERS := 1.3.2
 MODULE_DEPS :=
 MODULES := \
 	setup.cfg \
