@@ -19,13 +19,14 @@ class piter:
     '''
     Iterator class that also displays a progress bar.
     '''
-    def __init__(self, seq, width=40, verbose=True):
-        self.seq     = seq
-        self.width   = width
-        self.verbose = verbose
-        self.end     = len(seq)
-        self._iter   = iter(seq)
-        self.v       = 0
+    def __init__(self, seq, width=40, verbose=True, clear_line=False):
+        self.seq        = seq
+        self.width      = width
+        self.verbose    = verbose
+        self.clear_line = clear_line
+        self.end        = len(seq)
+        self._iter      = iter(seq)
+        self.v          = 0
 
     def __repr__(self):
         if self.end:
@@ -58,9 +59,12 @@ class piter:
             return next(self._iter)
         except StopIteration:
             if self.verbose:
-                print()
+                if self.clear_line:
+                    sys.stdout.write('\r\x1B[0K')
+                else:
+                    print()
             raise
 
 
-def prange(*args):
-    return piter(range(*args))
+def prange(*args, **kwargs):
+    return piter(range(*args), **kwargs)
