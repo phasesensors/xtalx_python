@@ -62,11 +62,18 @@ class CommandException(Exception):
         self.rx_data = rx_data
 
 
+PARITY_DICT = {
+    'N' : 0x4E4F4E45,
+    'E' : 0x4556454E,
+    'O' : 0x4F444420,
+}
+
+
 class MBA(xtalx.tools.modbus.Bus):
     CMD_EP = 0x01
     RSP_EP = 0x82
 
-    def __init__(self, usb_dev, baud_rate=115200):
+    def __init__(self, usb_dev, baud_rate=115200, parity='E'):
         super().__init__()
 
         self.usb_dev      = usb_dev
@@ -88,7 +95,7 @@ class MBA(xtalx.tools.modbus.Bus):
                 (self.fw_version >> 0) & 0x0F)
 
         self._synchronize()
-        self.set_baud_rate(baud_rate)
+        self.set_comm_params(baud_rate, parity)
 
     def __str__(self):
         return 'MBA(%s)' % self.serial_num
@@ -189,8 +196,9 @@ class MBA(xtalx.tools.modbus.Bus):
     def set_vext(self, enabled):
         return self._exec_command(Opcode.SET_VEXT, [enabled])
 
-    def set_baud_rate(self, baud_rate):
-        return self._exec_command(Opcode.SET_BAUD_RATE, [baud_rate])
+    def set_comm_params(self, baud_rate, parity=None):
+        params = [baud_rate, 0, 0, PARITY_DICT.get(parity, 0)]
+        return self._exec_command(Opcode.SET_BAUD_RATE, params)
 
     def enter_dfu_mode(self):
         return self._exec_command(Opcode.JUMP_BOOTLOADER, [0xA47B39FE])

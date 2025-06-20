@@ -40,7 +40,7 @@ def main(args):
                     break
                 baud_rate = BAUD_RATES.pop(0)
                 print('Trying %u baud.' % baud_rate)
-                bus.set_baud_rate(baud_rate)
+                bus.set_comm_params(baud_rate)
                 bus.set_vext(False)
                 time.sleep(1)
                 bus.set_vext(True)
