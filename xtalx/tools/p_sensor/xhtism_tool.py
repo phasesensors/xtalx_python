@@ -59,7 +59,7 @@ def main(args):
             addr = int(args.set_addr, 0)
         else:
             addr = xhtism.slave_addr
-        xhtism.set_comm_params(new_baud_rate, addr)
+        xhtism.set_comm_params(new_baud_rate, addr, parity='E')
 
 
 def _main():

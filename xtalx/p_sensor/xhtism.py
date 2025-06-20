@@ -7,6 +7,13 @@ from .xti import Measurement
 from .cal_page import CalPage
 
 
+PARITY_DICT = {
+    'N' : 0,
+    'E' : 2,
+    'O' : 3,
+}
+
+
 class XHTISM:
     '''
     This is a driver for the high-temperature XHTIS sensor built with Modbus
@@ -53,7 +60,7 @@ class XHTISM:
         return (objs[1].value.decode(), fw_version_str, fw_version,
                 git_sha1.decode().strip())
 
-    def set_comm_params(self, baud_rate, slave_addr):
+    def set_comm_params(self, baud_rate, slave_addr, parity):
         '''
         Set the sensor's baud rate and Modbus slave address.  The baud rate
         must be a multiple of 4800.  As per the Modbus specification, even
@@ -77,7 +84,8 @@ class XHTISM:
         assert slave_addr < 256
         self.bus.write_holding_registers_binary(self.slave_addr, 0x1001,
                                                 bytes([baud_rate, slave_addr,
-                                                       0x02, 0x00]))
+                                                       PARITY_DICT[parity],
+                                                       0x00]))
 
     def get_coefficients(self):
         '''
