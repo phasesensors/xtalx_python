@@ -224,7 +224,7 @@ class MBA(xtalx.tools.modbus.Bus):
             raise
 
         # Check the response function code.
-        if rx_data[1] != data[0]:
+        if rx_data[1] & 0x7F != data[0]:
             raise xtalx.tools.modbus.BadFunctionException(rx_data)
         if rx_data[1] & 0x80:
             raise xtalx.tools.modbus.ExceptionResponseException(rx_data,
