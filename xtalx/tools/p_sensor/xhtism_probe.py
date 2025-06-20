@@ -27,7 +27,8 @@ def main(args):
         return
 
     # Make the bus.
-    bus = xtalx.modbus_adapter.make_mba(dev, baud_rate=BAUD_RATES[0])
+    bus = xtalx.modbus_adapter.make_mba(dev, baud_rate=BAUD_RATES[0],
+                                        parity=args.parity)
 
     # Search.
     print('Searching...')
@@ -40,7 +41,7 @@ def main(args):
                     break
                 baud_rate = BAUD_RATES.pop(0)
                 print('Trying %u baud.' % baud_rate)
-                bus.set_comm_params(baud_rate)
+                bus.set_comm_params(baud_rate, args.parity)
                 bus.set_vext(False)
                 time.sleep(1)
                 bus.set_vext(True)
@@ -54,6 +55,11 @@ def main(args):
                     except xtalx.tools.modbus.ResponseTimeoutException:
                         continue
                     except xtalx.tools.modbus.ModbusException as e:
+                        sys.stdout.write('\r**** Device 0x%02X error: '
+                                         '%s\x1B[0K\r\n'
+                                         % (addr, str(type(e)) + str(e)))
+                        continue
+                    except xtalx.modbus_adapter.CommandException as e:
                         sys.stdout.write('\r**** Device 0x%02X error: '
                                          '%s\x1B[0K\r\n'
                                          % (addr, str(type(e)) + str(e)))
@@ -84,6 +90,7 @@ def main(args):
 def _main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--modbus-adapter-serial-number', '-s')
+    parser.add_argument('--parity', default='E', choices=['E', 'O', 'N'])
     parser.add_argument('--num-sensors', '-n', type=int, default=1)
     parser.add_argument('--response-timeout-ms', '-t', type=int, default=100)
 
