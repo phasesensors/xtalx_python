@@ -16,13 +16,15 @@ LOG_LEVEL = logging.INFO
 
 def make_sensor(args):
     if args.intf:
-        bus = xtalx.tools.modbus.serial.Bus(args.intf, args.baud_rate)
+        bus = xtalx.tools.modbus.serial.Bus(args.intf, args.baud_rate,
+                                            parity=args.parity)
         return xtalx.p_sensor.XHTISM(bus, int(args.addr, 0))
 
     dev = xtalx.modbus_adapter.find_one_mba(
             serial_number=args.modbus_adapter_serial_number)
     if dev is not None:
-        bus = xtalx.modbus_adapter.make_mba(dev, baud_rate=args.baud_rate)
+        bus = xtalx.modbus_adapter.make_mba(dev, baud_rate=args.baud_rate,
+                                            parity=args.parity)
         bus.set_vext(True)
         time.sleep(0.1)
         return xtalx.p_sensor.XHTISM(bus, int(args.addr, 0))
@@ -70,6 +72,7 @@ def _main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--intf', '-i')
     parser.add_argument('--baud-rate', '-b', default=115200, type=int)
+    parser.add_argument('--parity', default='E', choices=['E', 'O', 'N'])
     parser.add_argument('--addr', '-a', default='0x80')
     parser.add_argument('--set-addr')
     parser.add_argument('--set-baud-rate', type=int)
