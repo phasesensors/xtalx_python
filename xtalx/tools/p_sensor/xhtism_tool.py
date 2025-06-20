@@ -51,17 +51,21 @@ def main(args):
         xhtism.set_coefficients(t_c, p_c)
 
     # If we need to change the comms params, now is the time.
-    if args.set_addr or args.set_baud_rate:
+    if args.set_addr or args.set_baud_rate or args.set_parity:
         logging.info('%s: Updating comm params...', xhtism.serial_num)
         if args.set_baud_rate:
             new_baud_rate = args.set_baud_rate
         else:
             new_baud_rate = args.baud_rate
+        if args.set_parity:
+            new_parity = args.set_parity
+        else:
+            new_parity = args.parity
         if args.set_addr:
             addr = int(args.set_addr, 0)
         else:
             addr = xhtism.slave_addr
-        xhtism.set_comm_params(new_baud_rate, addr, parity='E')
+        xhtism.set_comm_params(new_baud_rate, addr, new_parity)
 
 
 def _main():
@@ -76,6 +80,7 @@ def _main():
     parser.add_argument('--addr', '-a', default='0x80')
     parser.add_argument('--set-addr')
     parser.add_argument('--set-baud-rate', type=int)
+    parser.add_argument('--set-parity', choices=['E', 'O', 'N'])
     parser.add_argument('--set-t-coefficient')
     parser.add_argument('--set-p-coefficient')
     parser.add_argument('--modbus-adapter-serial-number', '-s')
