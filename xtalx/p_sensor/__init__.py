@@ -98,6 +98,8 @@ def make_xmhti(usb_dev, **kwargs):
 def make(usb_dev, **kwargs):
     if usb_dev.bDeviceClass == 0xFF and usb_dev.bDeviceSubClass == 0x05:
         return XMHTI(usb_dev, **kwargs)
+    if usb_dev.product == 'XtalX XMHTI':
+        return XMHTI(usb_dev, **kwargs)
     if usb_dev.product == 'XtalX':
         return XTI(usb_dev, **kwargs)
 

@@ -251,6 +251,10 @@ def make_sensor(args):
     if dev is not None:
         return xtalx.p_sensor.make(dev)
 
+    dev = xtalx.p_sensor.find_one_xmhti(serial_number=args.serial_number)
+    if dev is not None:
+        return xtalx.p_sensor.make(dev)
+
     dev = xtalx.modbus_adapter.find_one_mba(serial_number=args.serial_number)
     if dev is not None:
         bus = xtalx.modbus_adapter.make_mba(dev, baud_rate=args.baud_rate)
