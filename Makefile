@@ -8,6 +8,7 @@ MODULES := \
 	xtalx/p_sensor/*.py \
 	xtalx/z_sensor/*.py \
 	xtalx/modbus_adapter/*.py \
+	xtalx/spi_adapter/*.py \
 	xtalx/tools/config/*.py \
 	xtalx/tools/csv/*.py \
 	xtalx/tools/influxdb/*.py \
