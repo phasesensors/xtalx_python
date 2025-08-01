@@ -7,8 +7,6 @@ import usb
 import usb.util
 import btype
 
-import xtalx.tools.modbus
-
 
 class Status(IntEnum):
     OK              = 0
@@ -31,7 +29,7 @@ class Status(IntEnum):
 
 class Opcode(IntEnum):
     SET_VEXT                 = 0x0001
-    SET_BAUD_RATE            = 0x0002
+    SET_FREQUENCY            = 0x0002
     XACT                     = 0x0003
     JUMP_BOOTLOADER          = 0x7B42
 
@@ -62,18 +60,11 @@ class CommandException(Exception):
         self.rx_data = rx_data
 
 
-PARITY_DICT = {
-    'N' : 0x4E4F4E45,
-    'E' : 0x4556454E,
-    'O' : 0x4F444420,
-}
-
-
-class MBA(xtalx.tools.modbus.Bus):
+class SPIA:
     CMD_EP = 0x01
     RSP_EP = 0x82
 
-    def __init__(self, usb_dev, baud_rate=115200, parity='E'):
+    def __init__(self, usb_dev):
         super().__init__()
 
         self.usb_dev      = usb_dev
@@ -95,10 +86,9 @@ class MBA(xtalx.tools.modbus.Bus):
                 (self.fw_version >> 0) & 0x0F)
 
         self._synchronize()
-        self.set_comm_params(baud_rate, parity)
 
     def __str__(self):
-        return 'MBA(%s)' % self.serial_num
+        return 'SPIA(%s)' % self.serial_num
 
     def _exec_command(self, opcode, params=None, data=b'', timeout_ms=1000):
         if not params:
@@ -135,7 +125,7 @@ class MBA(xtalx.tools.modbus.Bus):
         if rsp.status != Status.OK:
             raise CommandException(rsp, rx_data)
 
-        return rx_data
+        return rsp, rx_data
 
     def _set_configuration(self, bConfigurationValue):
         cfg = None
@@ -150,7 +140,7 @@ class MBA(xtalx.tools.modbus.Bus):
             self.usb_dev.set_configuration(bConfigurationValue)
 
     def _synchronize(self):
-        self._set_configuration(0x80)
+        self._set_configuration(0x84)
 
         # Try to abort any existing command.  Depending on the adapter's state:
         #   Waiting to RX CMD: will send a US_ABORTED RSP.
@@ -196,46 +186,17 @@ class MBA(xtalx.tools.modbus.Bus):
     def set_vext(self, enabled):
         return self._exec_command(Opcode.SET_VEXT, [enabled])
 
-    def set_comm_params(self, baud_rate, parity=None):
-        params = [baud_rate, 0, 0, PARITY_DICT.get(parity, 0)]
-        return self._exec_command(Opcode.SET_BAUD_RATE, params)
+    def set_spi_frequency(self, hz):
+        rsp, _ = self._exec_command(Opcode.SET_FREQUENCY, [hz])
+        return rsp.params[0]
 
     def enter_dfu_mode(self):
         return self._exec_command(Opcode.JUMP_BOOTLOADER, [0xA47B39FE])
 
-    def transact(self, addr, data, response_time_ms, nbytes=None):
-        try:
-            rx_data = self._exec_command(Opcode.XACT,
-                                         [addr, response_time_ms], data,
-                                         timeout_ms=(response_time_ms + 100))
-        except CommandException as e:
-            if e.rsp.status != Status.XACT_FAILED:
-                raise
+    def transact(self, data):
+        rsp, rx_data = self._exec_command(Opcode.XACT, data=data)
 
-            if e.rsp.params[0] == 0:
-                raise xtalx.tools.modbus.ResponseOverflowException(b'')
-            if e.rsp.params[0] == 1:
-                raise xtalx.tools.modbus.ResponseUnderflowException(b'')
-            if e.rsp.params[0] == 2:
-                raise xtalx.tools.modbus.BadCRCException(b'', None)
-            if e.rsp.params[0] == 3:
-                raise xtalx.tools.modbus.BadAddressException(b'')
-            if e.rsp.params[0] == 4:
-                raise xtalx.tools.modbus.BabbleException(b'')
-            if e.rsp.params[0] == 5:
-                raise xtalx.tools.modbus.ResponseInterruptedException(b'')
-            if e.rsp.params[0] == 6:
-                raise xtalx.tools.modbus.ResponseFramingErrorException(b'')
-            if e.rsp.params[0] == 7:
-                raise xtalx.tools.modbus.ResponseTimeoutException(b'')
-
-            raise
-
-        # Check the response function code.
-        if rx_data[1] & 0x7F != data[0]:
-            raise xtalx.tools.modbus.BadFunctionException(rx_data)
-        if rx_data[1] & 0x80:
-            raise xtalx.tools.modbus.ExceptionResponseException(rx_data,
-                                                                rx_data[2])
+        assert rsp.data_len == len(data)
+        assert rsp.data_len == len(rx_data)
 
         return rx_data

@@ -9,6 +9,7 @@ import glotlib
 
 import xtalx.p_sensor
 import xtalx.modbus_adapter
+import xtalx.spi_adapter
 import xtalx.tools.modbus.serial
 from xtalx.tools.math import XYSeries
 
@@ -206,6 +207,13 @@ def make_sensor(args):
         bus.set_vext(True)
         time.sleep(0.1)
         return xtalx.p_sensor.XHTISM(bus, int(args.modbus_addr, 0))
+
+    dev = xtalx.spi_adapter.find_one_spia(serial_number=args.serial_number)
+    if dev is not None:
+        bus = xtalx.spi_adapter.make_spia(dev)
+        bus.set_vext(True)
+        time.sleep(0.1)
+        return xtalx.p_sensor.XHTISS(bus)
 
     raise Exception('No matching devices.')
 
