@@ -14,7 +14,9 @@ from .exception import XtalXException
 
 
 FC_FLAGS_VALID              = (1 << 15)
-FC_FLAG_NO_TEMP_PRESSURE    = (1 << 4)
+FC_FLAG_NO_TEMP_C           = (1 << 6)
+FC_FLAG_HAVE_PID_INFO       = (1 << 5)
+FC_FLAG_NO_PRESSURE_PSI     = (1 << 4)
 FC_FLAG_PRESSURE_FAILED     = (1 << 3)
 FC_FLAG_TEMP_FAILED         = (1 << 2)
 FC_FLAG_PRESSURE_UPDATE     = (1 << 1)
@@ -281,7 +283,7 @@ class Measurement:
                 Fp = fp.ref_freq*fp.pressure_edges/fp.pressure_ref_clocks
             if not (fp.flags & FC_FLAG_TEMP_FAILED):
                 Ft = fp.ref_freq*fp.temp_edges/fp.temp_ref_clocks
-            if (fp.flags & FC_FLAG_NO_TEMP_PRESSURE) == 0:
+            if (fp.flags & FC_FLAG_NO_PRESSURE_PSI) == 0:
                 p = fp.pressure_psi
                 t = fp.temp_c
         else:
@@ -293,16 +295,17 @@ class Measurement:
             if not (fp.flags & FC_FLAG_TEMP_FAILED):
                 Ft  = fp.temp_hz_1e4 / 1e4
                 Flt = fp.lores_temp_hz_1e4 / 1e4
-            if (fp.flags & FC_FLAG_NO_TEMP_PRESSURE) == 0:
-                p   = fp.pressure_psi
+            if (fp.flags & FC_FLAG_NO_TEMP_C) == 0:
                 t   = fp.temp_c
-                lp  = fp.lores_pressure_psi
                 lt  = fp.lores_temp_c
                 if sensor.is_pid_supported():
                     cP  = fp.cP
                     cI  = fp.cI
                     cD  = fp.cD
                     dac = fp.dac_2p20 / 2**20
+            if (fp.flags & FC_FLAG_NO_PRESSURE_PSI) == 0:
+                p   = fp.pressure_psi
+                lp  = fp.lores_pressure_psi
         flags = fp.flags if fp.flags & FC_FLAGS_VALID else None
 
         return Measurement(sensor, mt, p, t, Fp, Ft, lp, lt, Flp, Flt, cP, cI,
