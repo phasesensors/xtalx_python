@@ -69,6 +69,8 @@ class CalPage(btype.Struct):
             return False
         if self.len > CalPage._EXPECTED_SIZE:
             return False
+        if self.len < CalPage.get_short_size():
+            return False
 
         self.poly_psi.pack()
         self.poly_temp.pack()

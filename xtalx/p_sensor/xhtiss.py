@@ -68,6 +68,7 @@ class XHTISS:
     def _read_ids(self):
         cmd = bytes([0x2A, 0x00, 0x01, 0xCA, 0x00]) + bytes(24)
         data = self.bus.transact(cmd)
+        print(data)
         serial_number = data[5:].decode().strip('\x00')
 
         cmd = bytes([0x2A, 0x00, 0x02, 0xCA, 0x00]) + bytes(10)
