@@ -55,6 +55,8 @@ class XHTISS:
 
         self.cal_page = self.read_valid_calibration_page()
 
+        self.poll_interval_sec = 0
+
         self.report_id = None
         self.poly_psi  = None
         self.poly_temp = None
@@ -68,6 +70,9 @@ class XHTISS:
     def _read_ids(self):
         cmd = bytes([0x2A, 0x00, 0x01, 0xCA, 0x00]) + bytes(24)
         data = self.bus.transact(cmd)
+        if data[5] == 0xFF or data[5] == 0x00:
+            raise Exception('Invalid ID response from sensor, may not be '
+                            'connected or powered.')
         serial_number = data[5:].decode().strip('\x00')
 
         cmd = bytes([0x2A, 0x00, 0x02, 0xCA, 0x00]) + bytes(10)
@@ -157,7 +162,10 @@ class XHTISS:
         m._age_ms = rsp.age_ms
         return m
 
-    def yield_measurements(self, poll_interval_sec=0, **_kwargs):
+    def yield_measurements(self, poll_interval_sec=None, **_kwargs):
+        if poll_interval_sec is None:
+            poll_interval_sec = self.poll_interval_sec
+
         self._halt_yield = False
         while not self._halt_yield:
             m = self.read_measurement()
