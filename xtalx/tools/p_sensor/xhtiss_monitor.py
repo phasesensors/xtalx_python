@@ -54,7 +54,7 @@ def main(rv):
         raise Exception('No adapter found.')
     bus = xtalx.spi_adapter.make_spia(dev)
     bus.set_vext(True)
-    time.sleep(0.1)
+    time.sleep(0.2)
 
     # Spawn a thread for each sensor on the bus.
     xhtiss = xtalx.p_sensor.XHTISS(bus)
