@@ -50,6 +50,9 @@ def make_sensor(args):
 
 def main(args):
     x = make_sensor(args)
+    print('Found sensor: %s' % x.serial_num)
+    print('  FW Version: %s' % x.fw_version_str)
+    print('    Git SHA1: %s' % x.git_sha1)
 
     mt = threading.Thread(target=measure_thread, args=(x,))
     mt.start()
