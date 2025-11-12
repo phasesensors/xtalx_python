@@ -54,42 +54,54 @@ def crc8(data, csum=0xFF):
 
 class SPIErrorCode(IntEnum):
     OK          = 0
-    BAD_CSUM    = 1
+    BAD_LENGTH  = 1
+    BAD_CSUM    = 2
 
 
 class FrequencyResponse(btype.Struct, endian='<'):
     age_ms         = btype.uint8_t()
+    status         = btype.uint8_t()
     pressure_hz    = btype.float64_t()
     temperature_hz = btype.float64_t()
-    _EXPECTED_SIZE = 17
+    _EXPECTED_SIZE = 18
 
 
 class ConversionResponse(btype.Struct, endian='<'):
     age_ms         = btype.uint8_t()
+    status         = btype.uint8_t()
     pressure_psi   = btype.float64_t()
     temperature_c  = btype.float64_t()
-    _EXPECTED_SIZE = 17
+    _EXPECTED_SIZE = 18
 
 
 class FixedResponse(btype.Struct, endian='<'):
     age_ms         = btype.uint8_t()
+    status         = btype.uint8_t()
     pressure_psi   = btype.int32_t()
     temperature_c  = btype.int32_t()
-    _EXPECTED_SIZE = 9
+    _EXPECTED_SIZE = 10
 
 
 class FullResponse(btype.Struct, endian='<'):
     age_ms         = btype.uint8_t()
+    status         = btype.uint8_t()
     pressure_psi   = btype.float64_t()
     temperature_c  = btype.float64_t()
     pressure_hz    = btype.float64_t()
     temperature_hz = btype.float64_t()
-    _EXPECTED_SIZE = 33
+    _EXPECTED_SIZE = 34
 
 
 class ProtocolError(XtalXException):
     '''
     The protocol itself had garbage data.
+    '''
+    pass
+
+
+class OpcodeMismatchError(XtalXException):
+    '''
+    The snesor thought it received a different command than the one we sent.
     '''
     pass
 
@@ -128,11 +140,14 @@ class XHTISS:
         self._halt_yield  = True
         self.last_time_ns = 0
 
+        print('a')
         self._synchronize()
 
+        print('b')
         self.nop(corrupt_csum=1)
         assert self._read_err() == SPIErrorCode.BAD_CSUM
 
+        print('c')
         try:
             self.nop()
         except PrevCommandChecksumError:
@@ -141,6 +156,7 @@ class XHTISS:
             raise Exception('Should have had a checksum error!')
         assert self._read_err() == SPIErrorCode.OK
 
+        print('d')
         (self.serial_num,
          self.fw_version_str,
          self.fw_version,
@@ -153,6 +169,7 @@ class XHTISS:
 
         self.poll_interval_sec = 0
 
+        print('e')
         self.report_id = None
         self.poly_psi  = None
         self.poly_temp = None
@@ -166,43 +183,54 @@ class XHTISS:
     def _csum_transact(self, cmd, corrupt_csum=0):
         tx_csum = crc8(cmd) + corrupt_csum
         tx_cmd  = cmd + bytes([tx_csum])
+        print('TX: [%u] %s' % (len(tx_cmd), tx_cmd.hex()))
         data    = self.bus.transact(tx_cmd)
+        print('RX: [%u] %s %s' % (len(data), data.hex(), data))
         if data[0] != 0xAA:
             raise ProtocolError()
-        if data[1] == SPIErrorCode.BAD_CSUM:
-            raise PrevCommandChecksumError()
-        if data[1] != SPIErrorCode.OK:
-            raise PrevCommandUnrecognizedError(data[1])
+        if data[2] != cmd[0]:
+            raise OpcodeMismatchError()
 
-        rsp     = data[:-1]
-        rx_csum = crc8(rsp)
-        if rx_csum != data[-1]:
+        rsp      = data[:-1]
+        exp_csum = crc8(rsp)
+        if exp_csum != data[-1]:
+            # print('Expected CSUM: 0x%02X' % exp_csum)
+            # print('Received CSUM: 0x%02X' % data[-1])
             raise RXChecksumError()
 
-        return rsp
+        return rsp[3:]
 
     def _read_err(self):
         tx_cmd = b'\x00\x00'
+        # print('ETX: %s' % tx_cmd.hex())
         data = self.bus.transact(tx_cmd)
+        # print('ERX: %s' % data.hex())
         if data[0] != 0xAA:
             raise ProtocolError()
         return data[1]
 
     def _synchronize(self):
-        tx_cmd = b'\x34\x00'
+        tx_cmd = b'\x34\x00\x00'
         tx_cmd = tx_cmd + bytes([crc8(tx_cmd)])
         while True:
+            print('STX: %s' % tx_cmd.hex())
             rsp = self.bus.transact(tx_cmd)
+            print('SRX: %s' % rsp.hex())
             if rsp[0] != 0xAA:
                 continue
             if rsp[1] == 0xBB:
                 raise Exception('Unsupported firmware version.')
             if rsp[1] != 0x00:
                 continue
-            if rsp[2] != crc8(rsp[0:2]):
+            if rsp[2] != 0x34:
+                continue
+            if rsp[3] != crc8(rsp[0:3]):
                 continue
 
+            cmd = b'\x00\x00'
+            # print('STX: %s' % cmd.hex())
             rsp = self.bus.transact(b'\x00\x00')
+            # print('SRX: %s' % rsp.hex())
             if rsp[0] != 0xAA:
                 continue
             if rsp[1] != 0x00:
@@ -211,43 +239,43 @@ class XHTISS:
             return 0
 
     def _read_ids(self):
-        cmd = bytes([0x2A, 0x00, 0x01, 0xCA, 0x00]) + bytes(24)
+        cmd = bytes([0x2A, 0x00, 0x00, 0x01, 0xCA, 0x00]) + bytes(24)
         data = self._csum_transact(cmd)
-        if data[5] == 0xFF or data[5] == 0x00:
+        if data[3] == 0xFF or data[3] == 0x00:
             raise Exception('Invalid ID response from sensor, may not be '
                             'connected or powered.')
-        serial_number = data[5:].decode().strip('\x00')
+        serial_number = data[3:].decode().strip('\x00')
 
-        cmd = bytes([0x2A, 0x00, 0x02, 0xCA, 0x00]) + bytes(10)
+        cmd = bytes([0x2A, 0x00, 0x00, 0x02, 0xCA, 0x00]) + bytes(10)
         data = self._csum_transact(cmd)
-        fw_version_str = data[5:].decode().strip('\x00')
+        fw_version_str = data[3:].decode().strip('\x00')
         parts          = fw_version_str.split('.')
         fw_version = ((int(parts[0]) << 8) |
                       (int(parts[1]) << 4) |
                       (int(parts[2]) << 0))
 
-        cmd = bytes([0x2A, 0x00, 0x03, 0xCA, 0x00]) + bytes(48)
+        cmd = bytes([0x2A, 0x00, 0x00, 0x03, 0xCA, 0x00]) + bytes(48)
         data = self._csum_transact(cmd)
-        git_sha1 = data[5:].decode().strip('\x00')
+        git_sha1 = data[3:].decode().strip('\x00')
 
         return serial_number, fw_version_str, fw_version, git_sha1
 
     def exec_cmd(self, cmd, rsp_len):
-        cmd_bytes = bytes([cmd, 0x00]) + b'\x00'*rsp_len
-        return self._csum_transact(cmd_bytes)[2:]
+        cmd_bytes = bytes([cmd, 0x00, 0x00]) + b'\x00'*rsp_len
+        return self._csum_transact(cmd_bytes)
 
     def nop(self, corrupt_csum=0):
-        self._csum_transact(b'\x34\x00', corrupt_csum=corrupt_csum)
+        self._csum_transact(b'\x34\x00\x00', corrupt_csum=corrupt_csum)
 
     def get_flash_params(self):
-        data = self._csum_transact(b'\x2A\x00\xEF\xC0\x00\x00\x00\x00\x00')
-        t_c = data[5]
-        p_c = data[6]
+        data = self._csum_transact(b'\x2A\x00\x00\xEF\xC0\x00\x00\x00\x00\x00')
+        t_c = data[3]
+        p_c = data[4]
         sample_ms = (data[8] << 8) | (data[7] << 0)
         return t_c, p_c, sample_ms
 
     def set_flash_params(self, t_c, p_c, sample_ms):
-        cmd = bytes([0x1E, 0x00, 0xEF, 0xC0, t_c, p_c,
+        cmd = bytes([0x1E, 0x00, 0x00, 0xEF, 0xC0, t_c, p_c,
                      sample_ms & 0xFF, (sample_ms >> 8) & 0xFF])
         self._csum_transact(cmd)
 
@@ -260,9 +288,9 @@ class XHTISS:
         for i in range(CalPage.get_short_size() // 4):
             address = 0x2000 + i*4
             rsp = self._csum_transact(bytes([
-                0x2A, 0x00, (address >> 0) & 0xFF, (address >> 8) & 0xFF,
+                0x2A, 0x00, 0x00, (address >> 0) & 0xFF, (address >> 8) & 0xFF,
                 0x00, 0x00, 0x00, 0x00, 0x00]))
-            data += rsp[5:]
+            data += rsp[3:]
         pad = b'\xff' * (CalPage._EXPECTED_SIZE - len(data))
         return (data + pad,)
 
@@ -297,6 +325,8 @@ class XHTISS:
 
     def read_full(self):
         data = self.exec_cmd(0x2D, FullResponse._STRUCT.size)
+        # print(data)
+        # print(len(data))
         return FullResponse.unpack(data)
 
     def read_measurement(self):

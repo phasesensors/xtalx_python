@@ -16,16 +16,19 @@ def measure_thread(x):
 
 
 def make_sensor(args):
+    print(1)
     if args.intf:
         bus = xtalx.tools.modbus.serial.Bus(args.intf, args.baud_rate)
         x = xtalx.p_sensor.XHTISM(bus, int(args.modbus_addr, 0))
         if args.serial_number is None or x.serial_num == args.serial_num:
             return x
 
+    print(2)
     dev = xtalx.p_sensor.find_one_xti(serial_number=args.serial_number)
     if dev is not None:
         return xtalx.p_sensor.make(dev)
 
+    print(3)
     dev = xtalx.modbus_adapter.find_one_mba(serial_number=args.serial_number)
     if dev is not None:
         bus = xtalx.modbus_adapter.make_mba(dev, baud_rate=args.baud_rate)
@@ -35,12 +38,16 @@ def make_sensor(args):
         if args.serial_number is None or x.serial_num == args.serial_num:
             return x
 
+    print(4)
     dev = xtalx.spi_adapter.find_one_spia(serial_number=args.serial_number)
     if dev is not None:
+        print(5)
         bus = xtalx.spi_adapter.make_spia(dev)
         bus.set_vext(True)
         time.sleep(0.2)
+        print(6)
         x = xtalx.p_sensor.XHTISS(bus)
+        print(7)
         if args.serial_number is None or x.serial_num == args.serial_num:
             x.poll_interval_sec = 0.2
             return x
