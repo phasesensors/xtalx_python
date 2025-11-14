@@ -140,14 +140,14 @@ class XHTISS:
         self._halt_yield  = True
         self.last_time_ns = 0
 
-        print('a')
+        # print('a')
         self._synchronize()
 
-        print('b')
+        # print('b')
         self.nop(corrupt_csum=1)
         assert self._read_err() == SPIErrorCode.BAD_CSUM
 
-        print('c')
+        # print('c')
         try:
             self.nop()
         except PrevCommandChecksumError:
@@ -156,7 +156,7 @@ class XHTISS:
             raise Exception('Should have had a checksum error!')
         assert self._read_err() == SPIErrorCode.OK
 
-        print('d')
+        # print('d')
         (self.serial_num,
          self.fw_version_str,
          self.fw_version,
@@ -169,7 +169,7 @@ class XHTISS:
 
         self.poll_interval_sec = 0
 
-        print('e')
+        # print('e')
         self.report_id = None
         self.poly_psi  = None
         self.poly_temp = None
@@ -183,9 +183,9 @@ class XHTISS:
     def _csum_transact(self, cmd, corrupt_csum=0):
         tx_csum = crc8(cmd) + corrupt_csum
         tx_cmd  = cmd + bytes([tx_csum])
-        print('TX: [%u] %s' % (len(tx_cmd), tx_cmd.hex()))
+        # print('TX: [%u] %s' % (len(tx_cmd), tx_cmd.hex()))
         data    = self.bus.transact(tx_cmd)
-        print('RX: [%u] %s %s' % (len(data), data.hex(), data))
+        # print('RX: [%u] %s %s' % (len(data), data.hex(), data))
         if data[0] != 0xAA:
             raise ProtocolError()
         if data[2] != cmd[0]:
@@ -213,9 +213,9 @@ class XHTISS:
         tx_cmd = b'\x34\x00\x00'
         tx_cmd = tx_cmd + bytes([crc8(tx_cmd)])
         while True:
-            print('STX: %s' % tx_cmd.hex())
+            # print('STX: %s' % tx_cmd.hex())
             rsp = self.bus.transact(tx_cmd)
-            print('SRX: %s' % rsp.hex())
+            # print('SRX: %s' % rsp.hex())
             if rsp[0] != 0xAA:
                 continue
             if rsp[1] == 0xBB:
