@@ -18,41 +18,59 @@ LINE_WIDTH = 1
 
 
 class TrackerWindow(glotlib.Window):
-    def __init__(self, name, period, show_lores_data):
+    def __init__(self, name, period, show_lores_data, display_frequencies):
         super().__init__(900, 700, msaa=4, name=name)
 
-        self.period          = period
-        self.show_lores_data = show_lores_data
-        self.data_gen        = -1
-        self.plot_gen        = -1
-        self.data_lock       = threading.Lock()
-        self.new_data        = []
-        self.p_measurements  = XYSeries([], [])
-        self.lp_measurements = XYSeries([], [])
+        self.period              = period
+        self.show_lores_data     = show_lores_data
+        self.display_frequencies = display_frequencies
+        self.data_gen            = -1
+        self.plot_gen            = -1
+        self.data_lock           = threading.Lock()
+        self.new_data            = []
+        self.p_measurements      = XYSeries([], [])
+        self.lp_measurements     = XYSeries([], [])
 
-        self.p_plot = self.add_plot(
-            311, limits=(-0.1, -0.5, 120, 300), max_v_ticks=10)
+        if display_frequencies:
+            self.p_plot = self.add_plot(
+                311, limits=(-0.1, 47000, 120, 62000), max_v_ticks=10)
+        else:
+            self.p_plot = self.add_plot(
+                311, limits=(-0.1, -0.5, 120, 300), max_v_ticks=10)
         self.lp_lines = self.p_plot.add_steps(X=[], Y=[], width=LINE_WIDTH)
         self.p_lines = self.p_plot.add_steps(X=[], Y=[], width=LINE_WIDTH)
         self.lp_lines.color = (0.78, 0.87, 0.93, 1)
-        self.p_plot.set_y_label('PSI')
+        self.p_plot.set_y_label('P Hz' if display_frequencies else 'PSI')
 
-        self.p_slow_plot = self.add_plot(
-            312, limits=(-0.1, -0.5, 120, 300), max_v_ticks=10,
-            sharex=self.p_plot, sharey=self.p_plot)
+        if display_frequencies:
+            self.p_slow_plot = self.add_plot(
+                312, limits=(-0.1, 47000, 120, 62000), max_v_ticks=10,
+                sharex=self.p_plot, sharey=self.p_plot)
+        else:
+            self.p_slow_plot = self.add_plot(
+                312, limits=(-0.1, -0.5, 120, 300), max_v_ticks=10,
+                sharex=self.p_plot, sharey=self.p_plot)
         self.lp_slow_lines = self.p_slow_plot.add_lines(X=[], Y=[],
                                                         width=LINE_WIDTH)
         self.p_slow_lines = self.p_slow_plot.add_lines(X=[], Y=[],
                                                        width=LINE_WIDTH)
-        self.p_slow_plot.set_y_label('PSI (%u-sec Avg)' % period)
+        self.p_slow_plot.set_y_label(
+            ('P Hz (%u-sec Avg)' % period) if display_frequencies else
+            ('PSI (%u-sec Avg)' % period))
 
-        self.t_plot = self.add_plot(
-            313, limits=(-0.1, -0.5, 120, 50), max_v_ticks=10,
-            sharex=self.p_plot)
+        if display_frequencies:
+            self.t_plot = self.add_plot(
+                313, limits=(-0.1, 260000, 120, 264000), max_v_ticks=10,
+                sharex=self.p_plot)
+        else:
+            self.t_plot = self.add_plot(
+                313, limits=(-0.1, -0.5, 120, 50), max_v_ticks=10,
+                sharex=self.p_plot)
         self.lt_lines = self.t_plot.add_steps(X=[], Y=[], width=LINE_WIDTH)
         self.t_lines = self.t_plot.add_steps(X=[], Y=[],  width=LINE_WIDTH)
         self.lt_lines.color = (0.78, 0.87, 0.93, 1)
-        self.t_plot.set_y_label('Temp (C)')
+        self.t_plot.set_y_label('Temp Hz' if display_frequencies else
+                                'Temp (C)')
 
         self.pos_label = self.add_label((0.99, 0.01), '', anchor='SE')
 
@@ -92,22 +110,42 @@ class TrackerWindow(glotlib.Window):
             updated = True
 
             # Low-res temperature measurements.
-            X = [m._timestamp for m in new_data if m.lores_temp_c is not None]
-            Y = [m.lores_temp_c for m in new_data if m.lores_temp_c is not None]
+            if self.display_frequencies:
+                X = [m._timestamp for m in new_data
+                     if m.lores_temp_freq is not None]
+                Y = [m.lores_temp_freq for m in new_data
+                     if m.lores_temp_freq is not None]
+            else:
+                X = [m._timestamp for m in new_data
+                     if m.lores_temp_c is not None]
+                Y = [m.lores_temp_c for m in new_data
+                     if m.lores_temp_c is not None]
             if self.show_lores_data:
                 self.lt_lines.append_x_y_data(X, Y)
 
             # Hi-res temperature measurements.
-            self.t_lines.append_x_y_data(
-                [m._timestamp for m in new_data],
-                [m.temp_c for m in new_data])
-            self.temp_label.set_text('%.4f \u00B0C' % new_data[-1].temp_c)
+            if self.display_frequencies:
+                self.t_lines.append_x_y_data(
+                    [m._timestamp for m in new_data],
+                    [m.temp_freq for m in new_data])
+                self.temp_label.set_text('%.4f Hz' % new_data[-1].temp_freq)
+            else:
+                self.t_lines.append_x_y_data(
+                    [m._timestamp for m in new_data],
+                    [m.temp_c for m in new_data])
+                self.temp_label.set_text('%.4f \u00B0C' % new_data[-1].temp_c)
 
             # Low-res pressure (LP) measurements.
-            X = [m._timestamp for m in new_data
-                 if m.lores_pressure_psi is not None]
-            Y = [m.lores_pressure_psi for m in new_data
-                 if m.lores_pressure_psi is not None]
+            if self.display_frequencies:
+                X = [m._timestamp for m in new_data
+                     if m.lores_pressure_freq is not None]
+                Y = [m.lores_pressure_freq for m in new_data
+                     if m.lores_pressure_freq is not None]
+            else:
+                X = [m._timestamp for m in new_data
+                     if m.lores_pressure_psi is not None]
+                Y = [m.lores_pressure_psi for m in new_data
+                     if m.lores_pressure_psi is not None]
             lp_len = len(self.lp_slow_lines.vertices)
             if lp_len:
                 lp_timestamp = self.lp_measurements.X[-1]
@@ -138,14 +176,19 @@ class TrackerWindow(glotlib.Window):
                                                     pressures)
 
             # Hi-res pressure (P) measurements.
-            X = [m._timestamp for m in new_data]
-            Y = [m.pressure_psi for m in new_data]
+            if self.display_frequencies:
+                X = [m._timestamp for m in new_data]
+                Y = [m.pressure_freq for m in new_data]
+                self.psi_label.set_text('%.4f Hz' % new_data[-1].pressure_freq)
+            else:
+                X = [m._timestamp for m in new_data]
+                Y = [m.pressure_psi for m in new_data]
+                self.psi_label.set_text('%.4f PSI' % new_data[-1].pressure_psi)
             p_len = len(self.p_slow_lines.vertices)
             if p_len:
                 p_timestamp = self.p_measurements.X[-1]
             self.p_measurements.append(X, Y)
             self.p_lines.append_x_y_data(X, Y)
-            self.psi_label.set_text('%.4f PSI' % new_data[-1].pressure_psi)
 
             # Averaged data from P measurements.
             if p_len:
@@ -166,7 +209,10 @@ class TrackerWindow(glotlib.Window):
                 t += self.period
             self.p_slow_lines.sub_x_y_data(index, timestamps, pressures)
             if len(pressures) >= 2:
-                self.psi_slow_label.set_text('%.4f PSI' % pressures[-2])
+                if self.display_frequencies:
+                    self.psi_slow_label.set_text('%.4f Hz' % pressures[-2])
+                else:
+                    self.psi_slow_label.set_text('%.4f PSI' % pressures[-2])
 
         return updated
 
@@ -176,7 +222,7 @@ class TrackerWindow(glotlib.Window):
             self.mark_dirty()
 
 
-def measure_thread(x, tw, csv_file):
+def measure_thread(x, tw, csv_file, display_frequencies):
     t0 = time.time()
     for m in x.yield_measurements(do_reset=False):
         t = time.time()
@@ -184,11 +230,15 @@ def measure_thread(x, tw, csv_file):
         tw.measurement_callback(m)
 
         if csv_file:
-            temp_c = m.temp_c if m.temp_c is not None else math.nan
-            pressure_psi = (m.pressure_psi if m.pressure_psi is not None
+            if display_frequencies:
+                temp = m.temp_freq if m.temp_freq is not None else math.nan
+                pressure = (m.pressure_freq if m.pressure_freq is not None
                             else math.nan)
-            csv_file.write('%.6f,%.6f,%.2f,%.5f\n' % (t, dt, temp_c,
-                                                      pressure_psi))
+            else:
+                temp = m.temp_c if m.temp_c is not None else math.nan
+                pressure = (m.pressure_psi if m.pressure_psi is not None
+                            else math.nan)
+            csv_file.write('%.6f,%.6f,%.5f,%.5f\n' % (t, dt, temp, pressure))
             csv_file.flush()
 
 
@@ -222,26 +272,31 @@ def main(args):
     x = make_sensor(args)
 
     if args.csv_file:
+        if args.display_frequencies:
+            hdr = 'time,dt,temp_hz,pressure_hz\n'
+        else:
+            hdr = 'time,dt,temp_c,pressure_psi\n'
         csv_file = open(  # pylint: disable=R1732
             args.csv_file, 'a+', encoding='utf8')
 
         pos = csv_file.tell()
         if pos != 0:
             csv_file.seek(0)
-            if csv_file.read(28) != 'time,dt,temp_c,pressure_psi\n':
+            if csv_file.read(28) != hdr:
                 print('%s does not appear to be a pressure sensor log file.' %
                       args.csv_file)
                 return
             csv_file.seek(pos)
         else:
-            csv_file.write('time,dt,temp_c,pressure_psi\n')
+            csv_file.write(hdr)
             csv_file.flush()
     else:
         csv_file = None
 
     tw  = TrackerWindow(x.serial_num, args.averaging_period_secs,
-                        args.show_lores_data)
-    mt  = threading.Thread(target=measure_thread, args=(x, tw, csv_file))
+                        args.show_lores_data, args.display_frequencies)
+    mt  = threading.Thread(target=measure_thread,
+                           args=(x, tw, csv_file, args.display_frequencies))
     mt.start()
 
     try:
@@ -262,6 +317,7 @@ def _main():
     parser.add_argument('--csv-file')
     parser.add_argument('--averaging-period-secs', type=int, default=3)
     parser.add_argument('--show-lores-data', action='store_true')
+    parser.add_argument('--display-frequencies', action='store_true')
     args = parser.parse_args()
     main(args)
 
