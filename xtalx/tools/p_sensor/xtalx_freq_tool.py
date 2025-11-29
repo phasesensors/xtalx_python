@@ -46,7 +46,7 @@ def make_sensor(args):
         bus.set_vext(True)
         time.sleep(0.2)
         # print(6)
-        x = xtalx.p_sensor.XHTISS(bus)
+        x = xtalx.p_sensor.make_xhtiss(bus)
         # print(7)
         if args.serial_number is None or x.serial_num == args.serial_num:
             x.poll_interval_sec = 0.2

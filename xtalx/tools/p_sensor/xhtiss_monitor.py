@@ -57,7 +57,7 @@ def main(rv):
     time.sleep(0.1)
 
     # Spawn a thread for each sensor on the bus.
-    xhtiss = xtalx.p_sensor.XHTISS(bus)
+    xhtiss = xtalx.p_sensor.make_xhtiss(bus)
     logging.info('%s: Found sensor with firmware version %s, git SHA1 %s',
                  xhtiss.serial_num, xhtiss.fw_version_str, xhtiss.git_sha1)
     t_c, p_c, sample_ms = xhtiss.get_flash_params()
