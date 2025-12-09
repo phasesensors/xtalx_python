@@ -263,7 +263,7 @@ def make_sensor(args):
         bus = xtalx.spi_adapter.make_spia(dev)
         bus.set_vext(True)
         time.sleep(0.1)
-        return xtalx.p_sensor.XHTISS(bus)
+        return xtalx.p_sensor.make_xhtiss(bus)
 
     raise Exception('No matching devices.')
 
