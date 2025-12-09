@@ -424,6 +424,9 @@ class XTI:
             if str(e) == 'The device has no langid':
                 raise XtalXException(
                     'Device has no langid, ensure running as root!') from e
+        self.fw_version_str = (str((self.fw_version >> 8) & 0xF) + '.' +
+                               str((self.fw_version >> 4) & 0xF) + '.' +
+                               str((self.fw_version >> 0) & 0xF))
 
         if self.usb_dev.bcdDevice >= 0x0103:
             try:
