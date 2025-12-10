@@ -8,6 +8,7 @@ import math
 from enum import Enum
 
 import glotlib
+import simple_tsdb
 
 import xtalx.z_sensor
 from xtalx.z_sensor.peak_tracker import Delegate
@@ -42,13 +43,14 @@ class ViewMode(Enum):
 
 
 class TrackerWindow(glotlib.Window, Delegate):
-    def __init__(self, tc, ipq, z_args, z_logger, name):
+    def __init__(self, tc, pq, z_args, z_logger, name, config):
         super().__init__(900, 700, msaa=4, name=tc.serial_num or '')
 
         self.tc               = tc
-        self.ipq              = ipq
+        self.pq               = pq
         self.z_args           = z_args
         self.z_logger         = z_logger
+        self.config           = config
         self.data_gen         = -1
         self.plot_gen         = -1
         self.data_lock        = threading.Lock()
@@ -77,6 +79,11 @@ class TrackerWindow(glotlib.Window, Delegate):
         self.small_h          = round(self.w_h * 0.25)
         self.sweep_prefix     = ''
         self.end_sweep_time   = None
+
+        if pq and isinstance(pq, simple_tsdb.PushQueue):
+            self.stsdb_path = config.stsdb_measurement + '/' + tc.serial_num
+        else:
+            self.stsdb_path = None
 
         volts = tc.dac_to_a(z_args.amplitude)
         if volts:
@@ -405,10 +412,19 @@ class TrackerWindow(glotlib.Window, Delegate):
                                           temp_freq, temp_c)
         self.data_callback(pt.sweep, fw_fit, points, T, D, V, hires)
 
-        if self.ipq:
-            p = self.make_influx_point(t0_ns, duration_ms, fw_fit, hires,
-                                       temp_freq)
-            self.ipq.append(p)
+        if self.pq:
+            if self.stsdb_path:
+                p = self.make_stsdb_point(t0_ns, duration_ms, fw_fit, hires,
+                                          temp_freq)
+                self.pq.append(p, self.stsdb_path)
+            else:
+                p = self.make_influx_point(t0_ns, duration_ms, fw_fit, hires,
+                                           temp_freq)
+                self.pq.append(p)
+
+    def make_stsdb_point(self, t0_ns, duration_ms, fw_fit, hires, temp_freq):
+        return self.tc.make_stsdb_point(t0_ns, duration_ms, fw_fit, hires,
+                                        temp_freq)
 
     def make_influx_point(self, t0_ns, duration_ms, fw_fit, hires, temp_freq):
         return self.tc.make_influx_point(t0_ns, duration_ms, fw_fit, hires,
@@ -416,7 +432,7 @@ class TrackerWindow(glotlib.Window, Delegate):
 
 
 def main(rv):
-    _c, ipq = z_common.parse_config(rv)
+    c, pq = z_common.parse_config(rv)
 
     track_admittance = not rv.track_impedance
 
@@ -424,7 +440,7 @@ def main(rv):
     tc     = xtalx.z_sensor.make(dev, verbose=rv.verbose,
                                  yield_Y=track_admittance)
     za, zl = z_common.parse_args(tc, rv)
-    tw     = TrackerWindow(tc, ipq, za, zl, tc.serial_num)
+    tw     = TrackerWindow(tc, pq, za, zl, tc.serial_num, c)
     pt     = xtalx.z_sensor.PeakTracker(
               tc, za.amplitude, za.nfreqs,
               za.search_time_secs, za.sweep_time_secs,
@@ -438,8 +454,8 @@ def main(rv):
     finally:
         pt.stop_threaded()
 
-    if ipq:
-        ipq.flush()
+    if pq:
+        pq.flush()
 
 
 def _main():

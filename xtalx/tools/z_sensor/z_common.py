@@ -2,6 +2,8 @@
 # All rights reserved.
 import math
 
+import simple_tsdb
+
 import xtalx.z_sensor
 from xtalx.tools.config import Config
 from xtalx.tools.influxdb import InfluxDBPushQueue
@@ -117,15 +119,22 @@ def parse_config(rv):
     if not rv.config:
         return None, None
 
+    pq = None
     with open(rv.config, encoding='utf8') as f:
-        c = Config(f.readlines(), ['influx_host', 'influx_user',
-                                   'influx_password', 'influx_database'])
+        c = Config(f.readlines(), [])
+        if c.has_keys(['influx_host', 'influx_user', 'influx_password',
+                       'influx_database']):
+            pq = InfluxDBPushQueue(c.influx_host, 8086, c.influx_user,
+                                   c.influx_password,
+                                   database=c.influx_database, ssl=True,
+                                   verify_ssl=True, timeout=100)
+        elif c.has_keys(['stsdb_host', 'stsdb_user', 'stsdb_password',
+                         'stsdb_measurement']):
+            pq = simple_tsdb.PushQueue(c.stsdb_host, 4000,
+                                       username=c.stsdb_user,
+                                       password=c.stsdb_password)
 
-        ipq = InfluxDBPushQueue(c.influx_host, 8086, c.influx_user,
-                                c.influx_password, database=c.influx_database,
-                                ssl=True, verify_ssl=True, timeout=100)
-
-    return c, ipq
+    return c, pq
 
 
 def parse_args(tc, rv):
