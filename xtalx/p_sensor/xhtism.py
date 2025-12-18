@@ -3,6 +3,8 @@
 import time
 import struct
 
+import xtalx.modbus_adapter
+
 from .xti import Measurement
 from .cal_page import CalPage
 
@@ -151,8 +153,12 @@ class XHTISM:
         if self.poly_temp is not None and ft:
             temp_c = self.poly_temp(ft)
 
-        return Measurement(self, None, psi, temp_c, fp, ft, None, None,
-                           None, None, None, None, None, None, None)
+        m = Measurement(self, None, psi, temp_c, fp, ft, None, None,
+                        None, None, None, None, None, None, None)
+        if isinstance(self.bus, xtalx.modbus_adapter.MBA):
+            m._current_amps = self.bus.measure_current()
+
+        return m
 
     def yield_measurements(self, poll_interval_sec=0.1, **_kwargs):
         self._halt_yield = False
