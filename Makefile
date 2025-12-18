@@ -15,6 +15,7 @@ MODULES := \
 	xtalx/tools/iter/*.py \
 	xtalx/tools/math/*.py \
 	xtalx/tools/modbus/*.py \
+	xtalx/tools/modbus_adapter/*.py \
 	xtalx/tools/p_sensor/*.py \
 	xtalx/tools/serial/*.py \
 	xtalx/tools/usb/*.py \
