@@ -135,7 +135,7 @@ class MBA(xtalx.tools.modbus.Bus):
         if rsp.status != Status.OK:
             raise CommandException(rsp, rx_data)
 
-        return rx_data
+        return rsp, rx_data
 
     def _set_configuration(self, bConfigurationValue):
         cfg = None
@@ -205,9 +205,9 @@ class MBA(xtalx.tools.modbus.Bus):
 
     def transact(self, addr, data, response_time_ms, nbytes=None):
         try:
-            rx_data = self._exec_command(Opcode.XACT,
-                                         [addr, response_time_ms], data,
-                                         timeout_ms=(response_time_ms + 100))
+            _, rx_data = self._exec_command(Opcode.XACT,
+                                            [addr, response_time_ms], data,
+                                            timeout_ms=(response_time_ms + 100))
         except CommandException as e:
             if e.rsp.status != Status.XACT_FAILED:
                 raise
