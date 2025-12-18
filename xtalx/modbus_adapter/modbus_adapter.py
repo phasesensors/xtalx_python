@@ -10,6 +10,10 @@ import btype
 import xtalx.tools.modbus
 
 
+class Feature(IntEnum):
+    CURRENT_MEASUREMENT     = (1 << 0)
+
+
 class Status(IntEnum):
     OK              = 0
     ABORTED         = 1
@@ -33,6 +37,7 @@ class Opcode(IntEnum):
     SET_VEXT                 = 0x0001
     SET_BAUD_RATE            = 0x0002
     XACT                     = 0x0003
+    MEASURE_CURRENT          = 0x0005
     JUMP_BOOTLOADER          = 0x7B42
 
 
@@ -93,6 +98,11 @@ class MBA(xtalx.tools.modbus.Bus):
                 (self.fw_version >> 8) & 0xFF,
                 (self.fw_version >> 4) & 0x0F,
                 (self.fw_version >> 0) & 0x0F)
+
+        self.features = 0
+        if self.serial_num.startswith('MBA-2'):
+            if self.fw_version >= 0x092:
+                self.features |= Feature.CURRENT_MEASUREMENT
 
         self._synchronize()
         self.set_comm_params(baud_rate, parity)
@@ -199,6 +209,15 @@ class MBA(xtalx.tools.modbus.Bus):
     def set_comm_params(self, baud_rate, parity=None):
         params = [baud_rate, 0, 0, PARITY_DICT.get(parity, 0)]
         return self._exec_command(Opcode.SET_BAUD_RATE, params)
+
+    def measure_current(self):
+        if (self.features & Feature.CURRENT_MEASUREMENT) == 0:
+            return 0.0
+
+        rsp, _ = self._exec_command(Opcode.MEASURE_CURRENT)
+        adc_iir = (((rsp.params[1] << 32) & 0xFFFFFFFF00000000) |
+                   ((rsp.params[0] <<  0) & 0x00000000FFFFFFFF))
+        return (3.3 / (4096 * 1000 * 0.033 * 2**52)) * adc_iir
 
     def enter_dfu_mode(self):
         return self._exec_command(Opcode.JUMP_BOOTLOADER, [0xA47B39FE])
