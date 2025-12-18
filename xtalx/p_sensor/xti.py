@@ -313,6 +313,8 @@ class Measurement:
         if verbose:
             if self.flags is not None:
                 s += 'F 0x%04X ' % self.flags
+            if hasattr(self, '_current_amps'):
+                s += 'mA %.2f ' % (self._current_amps * 1000)
             s += ('pf %s tf %s p %s t %s lpf %s ltf %s lp %s lt %s mt %s' %
                   (self.pressure_freq, self.temp_freq,
                    self.pressure_psi, self.temp_c, self.lores_pressure_freq,
