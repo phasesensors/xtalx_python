@@ -315,6 +315,12 @@ class Measurement:
                 s += 'F 0x%04X ' % self.flags
             if hasattr(self, '_current_amps'):
                 s += 'mA %.2f ' % (self._current_amps * 1000)
+            age_ms = getattr(self, '_age_ms', None)
+            if age_ms is not None:
+                s += 'ms %u ' % age_ms
+            status = getattr(self, '_status', None)
+            if status is not None:
+                s += 'status 0x%02X ' % status
             s += ('pf %s tf %s p %s t %s lpf %s ltf %s lp %s lt %s mt %s' %
                   (self.pressure_freq, self.temp_freq,
                    self.pressure_psi, self.temp_c, self.lores_pressure_freq,
