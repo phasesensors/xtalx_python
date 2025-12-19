@@ -3,7 +3,6 @@
 import btype
 
 from .xti import Measurement
-from .cal_page import CalPage
 
 
 class FrequencyResponse(btype.Struct, endian='<'):
@@ -55,55 +54,9 @@ class Comms:
         data = self.xhtiss.bus.transact(cmd)
         return data[5:]
 
-    def _read_ids(self):
-        cmd = bytes([0x2A, 0x00, 0x01, 0xCA, 0x00]) + bytes(24)
-        data = self.xhtiss.bus.transact(cmd)
-        serial_number = data[5:].decode().strip('\x00')
-
-        cmd = bytes([0x2A, 0x00, 0x02, 0xCA, 0x00]) + bytes(10)
-        data = self.xhtiss.bus.transact(cmd)
-        fw_version_str = data[5:].decode().strip('\x00')
-        parts          = fw_version_str.split('.')
-        fw_version = ((int(parts[0]) << 8) |
-                      (int(parts[1]) << 4) |
-                      (int(parts[2]) << 0))
-
-        cmd = bytes([0x2A, 0x00, 0x03, 0xCA, 0x00]) + bytes(48)
-        data = self.xhtiss.bus.transact(cmd)
-        git_sha1 = data[5:].decode().strip('\x00')
-
-        return serial_number, fw_version_str, fw_version, git_sha1
-
     def exec_cmd(self, cmd, rsp_len):
         cmd_bytes = bytes([cmd, 0x00]) + b'\x00'*rsp_len
         return self.xhtiss.bus.transact(cmd_bytes)[2:]
-
-    def get_flash_params(self):
-        data = self.xhtiss.bus.transact(b'\x2A\x00\xEF\xC0\x00\x00\x00\x00\x00')
-        t_c = data[5]
-        p_c = data[6]
-        sample_ms = (data[8] << 8) | (data[7] << 0)
-        return t_c, p_c, sample_ms
-
-    def set_flash_params(self, t_c, p_c, sample_ms):
-        cmd = bytes([0x1E, 0x00, 0xEF, 0xC0, t_c, p_c,
-                     sample_ms & 0xFF, (sample_ms >> 8) & 0xFF])
-        self.xhtiss.bus.transact(cmd)
-
-    def read_calibration_pages_raw(self):
-        '''
-        Returns the raw data bytes for the single calibration page stored in
-        flash.
-        '''
-        data = b''
-        for i in range(CalPage.get_short_size() // 4):
-            address = 0x2000 + i*4
-            rsp = self.xhtiss.bus.transact(bytes([
-                0x2A, 0x00, (address >> 0) & 0xFF, (address >> 8) & 0xFF,
-                0x00, 0x00, 0x00, 0x00, 0x00]))
-            data += rsp[5:]
-        pad = b'\xff' * (CalPage._EXPECTED_SIZE - len(data))
-        return (data + pad,)
 
     def read_frequencies(self):
         data = self.exec_cmd(0x19, FrequencyResponse._STRUCT.size)

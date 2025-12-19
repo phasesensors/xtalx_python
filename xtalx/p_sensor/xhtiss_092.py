@@ -5,7 +5,6 @@ from enum import IntEnum
 import btype
 
 from .xti import Measurement
-from .cal_page import CalPage
 from .exception import XtalXException
 
 
@@ -230,61 +229,12 @@ class Comms:
         data = self._csum_transact(cmd)
         return data[3:]
 
-    def _read_ids(self):
-        cmd = bytes([0x2A, 0x00, 0x00, 0x01, 0xCA, 0x00]) + bytes(24)
-        data = self._csum_transact(cmd)
-        if data[3] == 0xFF or data[3] == 0x00:
-            raise Exception('Invalid ID response from sensor, may not be '
-                            'connected or powered.')
-        serial_number = data[3:].decode().strip('\x00')
-
-        cmd = bytes([0x2A, 0x00, 0x00, 0x02, 0xCA, 0x00]) + bytes(10)
-        data = self._csum_transact(cmd)
-        fw_version_str = data[3:].decode().strip('\x00')
-        parts          = fw_version_str.split('.')
-        fw_version = ((int(parts[0]) << 8) |
-                      (int(parts[1]) << 4) |
-                      (int(parts[2]) << 0))
-
-        cmd = bytes([0x2A, 0x00, 0x00, 0x03, 0xCA, 0x00]) + bytes(48)
-        data = self._csum_transact(cmd)
-        git_sha1 = data[3:].decode().strip('\x00')
-
-        return serial_number, fw_version_str, fw_version, git_sha1
-
     def exec_cmd(self, cmd, rsp_len):
         cmd_bytes = bytes([cmd, 0x00, 0x00]) + b'\x00'*rsp_len
         return self._csum_transact(cmd_bytes)
 
     def nop(self, corrupt_csum=0):
         self._csum_transact(b'\x34\x00\x00', corrupt_csum=corrupt_csum)
-
-    def get_flash_params(self):
-        data = self._csum_transact(b'\x2A\x00\x00\xEF\xC0\x00\x00\x00\x00\x00')
-        t_c = data[3]
-        p_c = data[4]
-        sample_ms = (data[8] << 8) | (data[7] << 0)
-        return t_c, p_c, sample_ms
-
-    def set_flash_params(self, t_c, p_c, sample_ms):
-        cmd = bytes([0x1E, 0x00, 0x00, 0xEF, 0xC0, t_c, p_c,
-                     sample_ms & 0xFF, (sample_ms >> 8) & 0xFF])
-        self._csum_transact(cmd)
-
-    def read_calibration_pages_raw(self):
-        '''
-        Returns the raw data bytes for the single calibration page stored in
-        flash.
-        '''
-        data = b''
-        for i in range(CalPage.get_short_size() // 4):
-            address = 0x2000 + i*4
-            rsp = self._csum_transact(bytes([
-                0x2A, 0x00, 0x00, (address >> 0) & 0xFF, (address >> 8) & 0xFF,
-                0x00, 0x00, 0x00, 0x00, 0x00]))
-            data += rsp[3:]
-        pad = b'\xff' * (CalPage._EXPECTED_SIZE - len(data))
-        return (data + pad,)
 
     def read_frequencies(self):
         data = self.exec_cmd(0x19, FrequencyResponse._STRUCT.size)

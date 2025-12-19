@@ -23,7 +23,7 @@ class XHTISS:
         (self.serial_num,
          self.fw_version_str,
          self.fw_version,
-         self.git_sha1) = self.comms._read_ids()
+         self.git_sha1) = self._read_ids()
 
         self.cal_page = self.read_valid_calibration_page()
 
@@ -68,14 +68,47 @@ class XHTISS:
 
             return xhtiss_092.Comms(self)
 
+    def _read_ids(self):
+        data = self.comms._get_nvstore(0xCA01, 24)
+        if data[0] == 0xFF or data[0] == 0x00:
+            raise Exception('Invalid ID response from sensor, may not be '
+                            'connected or powered.')
+        serial_number = data.decode().strip('\x00')
+
+        data = self.comms._get_nvstore(0xCA02, 10)
+        fw_version_str = data.decode().strip('\x00')
+        parts          = fw_version_str.split('.')
+        fw_version = ((int(parts[0]) << 8) |
+                      (int(parts[1]) << 4) |
+                      (int(parts[2]) << 0))
+
+        data = self.comms._get_nvstore(0xCA03, 48)
+        git_sha1 = data.decode().strip('\x00')
+
+        return serial_number, fw_version_str, fw_version, git_sha1
+
     def get_flash_params(self):
-        return self.comms.get_flash_params()
+        data = self.comms._get_nvstore(0xC0EF, 4)
+        t_c = data[0]
+        p_c = data[1]
+        sample_ms = (data[3] << 8) | (data[2] << 0)
+        return t_c, p_c, sample_ms
 
     def set_flash_params(self, t_c, p_c, sample_ms):
-        self.comms.set_flash_params(t_c, p_c, sample_ms)
+        data = bytes([t_c, p_c, sample_ms & 0xFF, (sample_ms >> 8) & 0xFF])
+        self.comms._set_nvstore(0xC0EF, data)
 
     def read_calibration_pages_raw(self):
-        return self.comms.read_calibration_pages_raw()
+        '''
+        Returns the raw data bytes for the single calibration page stored in
+        flash.
+        '''
+        data = b''
+        for i in range(CalPage.get_short_size() // 4):
+            address = 0x2000 + i*4
+            data += self.comms._get_nvstore(address, 4)
+        pad = b'\xff' * (CalPage._EXPECTED_SIZE - len(data))
+        return (data + pad,)
 
     def read_calibration_pages(self):
         '''
