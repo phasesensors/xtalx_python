@@ -357,7 +357,16 @@ class XHTISS_092:
 
         self._halt_yield = False
         while not self._halt_yield:
-            m = self.read_measurement()
+            try:
+                m = self.read_measurement()
+            except OpcodeMismatchError as e:
+                print('Opcode mismatch: tx_cmd "%s" data "%s"' %
+                      (e.tx_cmd.hex(), e.data.hex()))
+                continue
+            except RXChecksumError as e:
+                print('RX checksum error: tx_cmd "%s" data "%s" exp 0x%02X' %
+                      (e.tx_cmd.hex(), e.data.hex(), e.exp_csum))
+                continue
             if m._age_ms > 25:
                 continue
 
