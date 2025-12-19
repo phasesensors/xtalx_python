@@ -58,36 +58,6 @@ class SPIErrorCode(IntEnum):
     BAD_CSUM    = 2
 
 
-class FrequencyResponse091(btype.Struct, endian='<'):
-    age_ms         = btype.uint8_t()
-    pressure_hz    = btype.float64_t()
-    temperature_hz = btype.float64_t()
-    _EXPECTED_SIZE = 17
-
-
-class ConversionResponse091(btype.Struct, endian='<'):
-    age_ms         = btype.uint8_t()
-    pressure_psi   = btype.float64_t()
-    temperature_c  = btype.float64_t()
-    _EXPECTED_SIZE = 17
-
-
-class FixedResponse091(btype.Struct, endian='<'):
-    age_ms         = btype.uint8_t()
-    pressure_psi   = btype.int32_t()
-    temperature_c  = btype.int32_t()
-    _EXPECTED_SIZE = 9
-
-
-class FullResponse091(btype.Struct, endian='<'):
-    age_ms         = btype.uint8_t()
-    pressure_psi   = btype.float64_t()
-    temperature_c  = btype.float64_t()
-    pressure_hz    = btype.float64_t()
-    temperature_hz = btype.float64_t()
-    _EXPECTED_SIZE = 33
-
-
 class FrequencyResponse(btype.Struct, endian='<'):
     age_ms         = btype.uint8_t()
     status         = btype.uint8_t()
