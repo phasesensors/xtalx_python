@@ -217,6 +217,19 @@ class Comms:
 
             return 0
 
+    def _set_nvstore(self, addr, data):
+        assert len(data) == 4
+        cmd = bytes([0x1E, 0x00, 0x00, (addr & 0xFF), ((addr >> 8) & 0xFF),
+                     data[0], data[1], data[2], data[3]])
+        self._csum_transact(cmd)
+
+    def _get_nvstore(self, addr, size):
+        cmd = bytes([0x2A, 0x00, 0x00, (addr & 0xFF), ((addr >> 8) & 0xFF),
+                     0x00])
+        cmd += bytes(size)
+        data = self._csum_transact(cmd)
+        return data[3:]
+
     def _read_ids(self):
         cmd = bytes([0x2A, 0x00, 0x00, 0x01, 0xCA, 0x00]) + bytes(24)
         data = self._csum_transact(cmd)
