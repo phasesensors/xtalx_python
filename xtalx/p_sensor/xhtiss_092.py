@@ -102,12 +102,29 @@ class OpcodeMismatchError(XtalXException):
     '''
     The snesor thought it received a different command than the one we sent.
     '''
+    def __init__(self, tx_cmd, data, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.tx_cmd = tx_cmd
+        self.data = data
+
+    def __str__(self):
+        return 'OpcodeMismatchError(tx_cmd="%s", data="%s")' % (
+                self.tx_cmd.hex(), self.data.hex())
 
 
 class RXChecksumError(XtalXException):
     '''
     We received a bad checksum in the response from the sensor.
     '''
+    def __init__(self, tx_cmd, data, exp_csum, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.tx_cmd = tx_cmd
+        self.data = data
+        self.exp_csum = exp_csum
+
+    def __str__(self):
+        return 'RXChecksumError(tx_cmd="%s", data="%s")' % (
+                self.tx_cmd.hex(), self.data.hex())
 
 
 class PrevCommandChecksumError(XtalXException):
@@ -185,14 +202,14 @@ class XHTISS_092:
         if data[0] != 0xAA:
             raise ProtocolError()
         if data[2] != cmd[0]:
-            raise OpcodeMismatchError()
+            raise OpcodeMismatchError(tx_cmd, data)
 
         rsp      = data[:-1]
         exp_csum = crc8(rsp)
         if exp_csum != data[-1]:
             # print('Expected CSUM: 0x%02X' % exp_csum)
             # print('Received CSUM: 0x%02X' % data[-1])
-            raise RXChecksumError()
+            raise RXChecksumError(tx_cmd, data, exp_csum)
 
         return rsp[3:]
 
