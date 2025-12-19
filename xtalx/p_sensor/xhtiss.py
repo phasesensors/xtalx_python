@@ -1,41 +1,128 @@
 # Copyright (c) 2025 by Phase Advanced Sensor Systems, Inc.
 # All rights reserved.
-from .xhtiss_091 import XHTISS_091
-from .xhtiss_092 import XHTISS_092, crc8
+import time
+
+from . import xhtiss_091
+from . import xhtiss_092
+from .cal_page import CalPage
 
 
-def make_xhtiss(bus):
-    # Probe the target firmware.
-    tx_cmd = b'\x34\x00\x00'
-    tx_cmd = tx_cmd + bytes([crc8(tx_cmd)])
-    while True:
-        # Send a NOP command.  This will be interpreted as an unsupported
-        # command by 0.9.1 firmware.
-        print('STX: %s' % tx_cmd.hex())
-        rsp = bus.transact(tx_cmd)
-        print('SRX: %s' % rsp.hex())
-        if rsp == b'\xAA\xBB??':
-            return XHTISS_091(bus)
+class XHTISS:
+    '''
+    This is a driver for the high-temperature XHTISS sensor with an SPI
+    interface.
+    '''
+    def __init__(self, bus):
+        self.bus               = bus
+        self._halt_yield       = True
+        self.last_time_ns      = 0
+        self.poll_interval_sec = 0
 
-        # The response didn't look like 0.9.1 firmware, analyze it.
-        if rsp[0] != 0xAA:
-            continue
-        if rsp[1] != 0x00:
-            continue
-        if rsp[2] != 0x34:
-            continue
-        if rsp[3] != crc8(rsp[0:3]):
-            continue
+        self.comms = self._probe_comms()
 
-        # The response was good for an 0.9.2 or higher firmware; we can double-
-        # check the sticky status code.
-        cmd = b'\x00\x00'
-        print('STX: %s' % cmd.hex())
-        rsp = bus.transact(b'\x00\x00')
-        print('SRX: %s' % rsp.hex())
-        if rsp[0] != 0xAA:
-            continue
-        if rsp[1] != 0x00:
-            continue
+        (self.serial_num,
+         self.fw_version_str,
+         self.fw_version,
+         self.git_sha1) = self.comms._read_ids()
 
-        return XHTISS_092(bus)
+        self.cal_page = self.read_valid_calibration_page()
+
+        self.report_id = None
+        self.poly_psi  = None
+        self.poly_temp = None
+        if self.cal_page is not None:
+            self.report_id = self.cal_page.get_report_id()
+            self.poly_psi, self.poly_temp = self.cal_page.get_polynomials()
+
+    def __str__(self):
+        return 'XHTISS(%s)' % self.serial_num
+
+    def _probe_comms(self):
+        # Probe the target firmware.
+        tx_cmd = b'\x34\x00\x00'
+        tx_cmd = tx_cmd + bytes([xhtiss_092.crc8(tx_cmd)])
+        while True:
+            # Send a NOP command.  This will be interpreted as an unsupported
+            # command by 0.9.1 firmware.
+            rsp = self.bus.transact(tx_cmd)
+            if rsp == b'\xAA\xBB??':
+                return xhtiss_091.Comms(self)
+
+            # The response didn't look like 0.9.1 firmware, analyze it.
+            if rsp[0] != 0xAA:
+                continue
+            if rsp[1] != 0x00:
+                continue
+            if rsp[2] != 0x34:
+                continue
+            if rsp[3] != xhtiss_092.crc8(rsp[0:3]):
+                continue
+
+            # The response was good for an 0.9.2 or higher firmware; we can
+            # double-check the sticky status code.
+            rsp = self.bus.transact(b'\x00\x00')
+            if rsp[0] != 0xAA:
+                continue
+            if rsp[1] != 0x00:
+                continue
+
+            return xhtiss_092.Comms(self)
+
+    def get_flash_params(self):
+        return self.comms.get_flash_params()
+
+    def set_flash_params(self, t_c, p_c, sample_ms):
+        self.comms.set_flash_params(t_c, p_c, sample_ms)
+
+    def read_calibration_pages_raw(self):
+        return self.comms.read_calibration_pages_raw()
+
+    def read_calibration_pages(self):
+        '''
+        Returns a CalPage struct for the single calibration page in sensor
+        flash, even if the page is missing or corrupt.
+        '''
+        (cp_data,) = self.read_calibration_pages_raw()
+        cp = CalPage.unpack(cp_data)
+        return (cp,)
+
+    def read_valid_calibration_page(self):
+        '''
+        Returns CalPage struct from the sensor flash.  Returns None if the
+        calibration is not present or corrupted.
+        '''
+        (cp,) = self.read_calibration_pages()
+        return cp if cp.is_valid() else None
+
+    def yield_measurements(self, poll_interval_sec=None, **_kwargs):
+        if poll_interval_sec is None:
+            poll_interval_sec = self.poll_interval_sec
+
+        self._halt_yield = False
+        while not self._halt_yield:
+            try:
+                m = self.comms.read_measurement()
+            except xhtiss_092.OpcodeMismatchError as e:
+                print('Opcode mismatch: tx_cmd "%s" data "%s"' %
+                      (e.tx_cmd.hex(), e.data.hex()))
+                continue
+            except xhtiss_092.RXChecksumError as e:
+                print('RX checksum error: tx_cmd "%s" data "%s" exp 0x%02X' %
+                      (e.tx_cmd.hex(), e.data.hex(), e.exp_csum))
+                continue
+            if m._age_ms > 25:
+                continue
+
+            yield m
+            time.sleep(poll_interval_sec)
+
+    def halt_yield(self):
+        self._halt_yield = True
+
+    def time_ns_increasing(self):
+        '''
+        Returns a time value in nanoseconds that is guaranteed to increase
+        after every single call.  This function is not thread-safe.
+        '''
+        self.last_time_ns = t = max(time.time_ns(), self.last_time_ns + 1)
+        return t

@@ -1,6 +1,5 @@
 # Copyright (c) 2025 by Phase Advanced Sensor Systems, Inc.
 # All rights reserved.
-import time
 from enum import IntEnum
 
 import btype
@@ -96,6 +95,14 @@ class ProtocolError(XtalXException):
     '''
     The protocol itself had garbage data.
     '''
+    def __init__(self, tx_cmd, data, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.tx_cmd = tx_cmd
+        self.data = data
+
+    def __str__(self):
+        return 'ProtocolError(tx_cmd="%s", data="%s")' % (
+                self.tx_cmd.hex(), self.data.hex())
 
 
 class OpcodeMismatchError(XtalXException):
@@ -143,24 +150,18 @@ class PrevCommandUnrecognizedError(XtalXException):
         self.err_code = err_code
 
 
-class XHTISS_092:
+class Comms:
     '''
-    This is a driver for the high-temperature XHTISS sensor with an SPI
-    interface, running firmware 0.9.2 or higher.
+    Communication protocol for sensor firmare 0.9.2 or later.
     '''
-    def __init__(self, bus):
-        self.bus          = bus
-        self._halt_yield  = True
-        self.last_time_ns = 0
+    def __init__(self, xhtiss):
+        self.xhtiss = xhtiss
 
-        # print('a')
         self._synchronize()
 
-        # print('b')
         self.nop(corrupt_csum=1)
         assert self._read_err() == SPIErrorCode.BAD_CSUM
 
-        # print('c')
         try:
             self.nop()
         except PrevCommandChecksumError:
@@ -169,66 +170,34 @@ class XHTISS_092:
             raise Exception('Should have had a checksum error!') from exc
         assert self._read_err() == SPIErrorCode.OK
 
-        # print('d')
-        (self.serial_num,
-         self.fw_version_str,
-         self.fw_version,
-         self.git_sha1) = self._read_ids()
-        if self.fw_version < 0x092:
-            raise Exception('Unsupported firmware version %s.'
-                            % self.fw_version_str)
-
-        self.cal_page = self.read_valid_calibration_page()
-
-        self.poll_interval_sec = 0
-
-        # print('e')
-        self.report_id = None
-        self.poly_psi  = None
-        self.poly_temp = None
-        if self.cal_page is not None:
-            self.report_id = self.cal_page.get_report_id()
-            self.poly_psi, self.poly_temp = self.cal_page.get_polynomials()
-
-    def __str__(self):
-        return 'XHTISS(%s)' % self.serial_num
-
     def _csum_transact(self, cmd, corrupt_csum=0):
         tx_csum = crc8(cmd) + corrupt_csum
         tx_cmd  = cmd + bytes([tx_csum])
-        # print('TX: [%u] %s' % (len(tx_cmd), tx_cmd.hex()))
-        data    = self.bus.transact(tx_cmd)
-        # print('RX: [%u] %s %s' % (len(data), data.hex(), data))
+        data    = self.xhtiss.bus.transact(tx_cmd)
         if data[0] != 0xAA:
-            raise ProtocolError()
+            raise ProtocolError(tx_cmd, data)
         if data[2] != cmd[0]:
             raise OpcodeMismatchError(tx_cmd, data)
 
         rsp      = data[:-1]
         exp_csum = crc8(rsp)
         if exp_csum != data[-1]:
-            # print('Expected CSUM: 0x%02X' % exp_csum)
-            # print('Received CSUM: 0x%02X' % data[-1])
             raise RXChecksumError(tx_cmd, data, exp_csum)
 
         return rsp[3:]
 
     def _read_err(self):
         tx_cmd = b'\x00\x00'
-        # print('ETX: %s' % tx_cmd.hex())
-        data = self.bus.transact(tx_cmd)
-        # print('ERX: %s' % data.hex())
+        data = self.xhtiss.bus.transact(tx_cmd)
         if data[0] != 0xAA:
-            raise ProtocolError()
+            raise ProtocolError(tx_cmd, data)
         return data[1]
 
     def _synchronize(self):
         tx_cmd = b'\x34\x00\x00'
         tx_cmd = tx_cmd + bytes([crc8(tx_cmd)])
         while True:
-            # print('STX: %s' % tx_cmd.hex())
-            rsp = self.bus.transact(tx_cmd)
-            # print('SRX: %s' % rsp.hex())
+            rsp = self.xhtiss.bus.transact(tx_cmd)
             if rsp[0] != 0xAA:
                 continue
             if rsp[1] == 0xBB:
@@ -240,10 +209,7 @@ class XHTISS_092:
             if rsp[3] != crc8(rsp[0:3]):
                 continue
 
-            # cmd = b'\x00\x00'
-            # print('STX: %s' % cmd.hex())
-            rsp = self.bus.transact(b'\x00\x00')
-            # print('SRX: %s' % rsp.hex())
+            rsp = self.xhtiss.bus.transact(b'\x00\x00')
             if rsp[0] != 0xAA:
                 continue
             if rsp[1] != 0x00:
@@ -307,23 +273,6 @@ class XHTISS_092:
         pad = b'\xff' * (CalPage._EXPECTED_SIZE - len(data))
         return (data + pad,)
 
-    def read_calibration_pages(self):
-        '''
-        Returns a CalPage struct for the single calibration page in sensor
-        flash, even if the page is missing or corrupt.
-        '''
-        (cp_data,) = self.read_calibration_pages_raw()
-        cp = CalPage.unpack(cp_data)
-        return (cp,)
-
-    def read_valid_calibration_page(self):
-        '''
-        Returns CalPage struct from the sensor flash.  Returns None if the
-        calibration is not present or corrupted.
-        '''
-        (cp,) = self.read_calibration_pages()
-        return cp if cp.is_valid() else None
-
     def read_frequencies(self):
         data = self.exec_cmd(0x19, FrequencyResponse._STRUCT.size)
         return FrequencyResponse.unpack(data)
@@ -338,49 +287,14 @@ class XHTISS_092:
 
     def read_full(self):
         data = self.exec_cmd(0x2D, FullResponse._STRUCT.size)
-        # print(data)
-        # print(len(data))
         return FullResponse.unpack(data)
 
     def read_measurement(self):
         rsp = self.read_full()
 
-        m = Measurement(self, None, rsp.pressure_psi, rsp.temperature_c,
+        m = Measurement(self.xhtiss, None, rsp.pressure_psi, rsp.temperature_c,
                         rsp.pressure_hz, rsp.temperature_hz, None, None, None,
                         None, None, None, None, None, None)
         m._age_ms = rsp.age_ms
         m._status = rsp.status
         return m
-
-    def yield_measurements(self, poll_interval_sec=None, **_kwargs):
-        if poll_interval_sec is None:
-            poll_interval_sec = self.poll_interval_sec
-
-        self._halt_yield = False
-        while not self._halt_yield:
-            try:
-                m = self.read_measurement()
-            except OpcodeMismatchError as e:
-                print('Opcode mismatch: tx_cmd "%s" data "%s"' %
-                      (e.tx_cmd.hex(), e.data.hex()))
-                continue
-            except RXChecksumError as e:
-                print('RX checksum error: tx_cmd "%s" data "%s" exp 0x%02X' %
-                      (e.tx_cmd.hex(), e.data.hex(), e.exp_csum))
-                continue
-            if m._age_ms > 25:
-                continue
-
-            yield m
-            time.sleep(poll_interval_sec)
-
-    def halt_yield(self):
-        self._halt_yield = True
-
-    def time_ns_increasing(self):
-        '''
-        Returns a time value in nanoseconds that is guaranteed to increase
-        after every single call.  This function is not thread-safe.
-        '''
-        self.last_time_ns = t = max(time.time_ns(), self.last_time_ns + 1)
-        return t

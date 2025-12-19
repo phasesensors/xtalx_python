@@ -40,7 +40,7 @@ def make_sensor(args):
         bus = xtalx.spi_adapter.make_spia(dev)
         bus.set_vext(True)
         time.sleep(0.2)
-        x = xtalx.p_sensor.make_xhtiss(bus)
+        x = xtalx.p_sensor.XHTISS(bus)
         if args.serial_number is None or x.serial_num == args.serial_num:
             x.poll_interval_sec = 0.2
             return x
