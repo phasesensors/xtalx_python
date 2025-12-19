@@ -349,6 +349,7 @@ class XHTISS_092:
                         rsp.pressure_hz, rsp.temperature_hz, None, None, None,
                         None, None, None, None, None, None)
         m._age_ms = rsp.age_ms
+        m._status = rsp.status
         return m
 
     def yield_measurements(self, poll_interval_sec=None, **_kwargs):
