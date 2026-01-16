@@ -60,21 +60,25 @@ class XHTISS:
                 return xhtiss_091.Comms(self)
 
             # The response didn't look like 0.9.1 firmware, analyze it.
-            if rsp[0] != 0xAA:
+            if rsp[:3] != b'\xAA\x00\x34':
+                logging.info('Response prefix mismatch probing comms, '
+                             'expected: %s rsp: %s', b'\xAA\x00\x34', rsp)
+                time.sleep(1)
                 continue
-            if rsp[1] != 0x00:
-                continue
-            if rsp[2] != 0x34:
-                continue
-            if rsp[3] != xhtiss_092.crc8(rsp[0:3]):
+            csum = xhtiss_092.crc8(rsp[0:3])
+            if rsp[3] != csum:
+                logging.info('Response checksum error probing comms, '
+                             'expected: 0x%02X rsp: %s', csum, rsp)
+                time.sleep(1)
                 continue
 
             # The response was good for an 0.9.2 or higher firmware; we can
             # double-check the sticky status code.
             rsp = self.bus.transact(b'\x00\x00')
-            if rsp[0] != 0xAA:
-                continue
-            if rsp[1] != 0x00:
+            if rsp[:2] != b'\xAA\x00':
+                logging.info('Response prefix mismatch probing sticky status, '
+                             'expected: %s rsp: %s', b'\xAA\x00', rsp)
+                time.sleep(1)
                 continue
 
             return xhtiss_092.Comms(self)
