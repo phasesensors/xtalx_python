@@ -1,6 +1,7 @@
 # Copyright (c) 2025 by Phase Advanced Sensor Systems, Inc.
 # All rights reserved.
 import time
+import logging
 
 import xtalx.spi_adapter
 
@@ -43,29 +44,41 @@ class XHTISS:
         # Probe the target firmware.
         tx_cmd = b'\x34\x00\x00'
         tx_cmd = tx_cmd + bytes([xhtiss_092.crc8(tx_cmd)])
+        retries = 0
         while True:
             # Send a NOP command.  This will be interpreted as an unsupported
             # command by 0.9.1 firmware.
             rsp = self.bus.transact(tx_cmd)
+            if rsp == b'????':
+                retries += 1
+                if retries == 10:
+                    logging.info('Repeated probe rsp: %s, 0.9.1 firmware '
+                                 'likely dead', rsp)
+                    raise xhtiss_091.DeadFirmwareException()
+                continue
             if rsp == b'\xAA\xBB??':
                 return xhtiss_091.Comms(self)
 
             # The response didn't look like 0.9.1 firmware, analyze it.
-            if rsp[0] != 0xAA:
+            if rsp[:3] != b'\xAA\x00\x34':
+                logging.info('Response prefix mismatch probing comms, '
+                             'expected: %s rsp: %s', b'\xAA\x00\x34', rsp)
+                time.sleep(1)
                 continue
-            if rsp[1] != 0x00:
-                continue
-            if rsp[2] != 0x34:
-                continue
-            if rsp[3] != xhtiss_092.crc8(rsp[0:3]):
+            csum = xhtiss_092.crc8(rsp[0:3])
+            if rsp[3] != csum:
+                logging.info('Response checksum error probing comms, '
+                             'expected: 0x%02X rsp: %s', csum, rsp)
+                time.sleep(1)
                 continue
 
             # The response was good for an 0.9.2 or higher firmware; we can
             # double-check the sticky status code.
             rsp = self.bus.transact(b'\x00\x00')
-            if rsp[0] != 0xAA:
-                continue
-            if rsp[1] != 0x00:
+            if rsp[:2] != b'\xAA\x00':
+                logging.info('Response prefix mismatch probing sticky status, '
+                             'expected: %s rsp: %s', b'\xAA\x00', rsp)
+                time.sleep(1)
                 continue
 
             return xhtiss_092.Comms(self)
@@ -138,13 +151,17 @@ class XHTISS:
             try:
                 m = self.comms.read_measurement()
             except xhtiss_092.OpcodeMismatchError as e:
-                print('Opcode mismatch: tx_cmd "%s" data "%s"' %
-                      (e.tx_cmd.hex(), e.data.hex()))
+                logging.info('%s: Opcode mismatch: tx_cmd "%s" data "%s"',
+                             self, e.tx_cmd.hex(), e.data.hex())
                 continue
             except xhtiss_092.RXChecksumError as e:
-                print('RX checksum error: tx_cmd "%s" data "%s" exp 0x%02X' %
-                      (e.tx_cmd.hex(), e.data.hex(), e.exp_csum))
+                logging.info('%s: RX checksum error: tx_cmd "%s" data "%s" '
+                             'exp 0x%02X', self, e.tx_cmd.hex(), e.data.hex(),
+                             e.exp_csum)
                 continue
+            except Exception as e:
+                logging.info('%s: Exception: %s', self, e)
+                raise
             if m._age_ms > 25:
                 continue
             if isinstance(self.bus, xtalx.spi_adapter.SPIA):
