@@ -1,4 +1,4 @@
-# Copyright (c) 2025 Phase Advanced Sensor Systems, Inc.
+# Copyright (c) 2025-2026 Phase Advanced Sensor Systems, Inc.
 from enum import IntEnum
 import platform
 import random
@@ -6,6 +6,10 @@ import random
 import usb
 import usb.util
 import btype
+
+
+class Feature(IntEnum):
+    CURRENT_MEASUREMENT     = (1 << 0)
 
 
 class Status(IntEnum):
@@ -31,6 +35,7 @@ class Opcode(IntEnum):
     SET_VEXT                 = 0x0001
     SET_FREQUENCY            = 0x0002
     XACT                     = 0x0003
+    MEASURE_CURRENT          = 0x0004
     JUMP_BOOTLOADER          = 0x7B42
 
 
@@ -84,6 +89,11 @@ class SPIA:
                 (self.fw_version >> 8) & 0xFF,
                 (self.fw_version >> 4) & 0x0F,
                 (self.fw_version >> 0) & 0x0F)
+
+        self.features = 0
+        if self.serial_num.startswith('XSPI-2'):
+            if self.fw_version >= 0x091:
+                self.features |= Feature.CURRENT_MEASUREMENT
 
         self._synchronize()
 
@@ -189,6 +199,15 @@ class SPIA:
     def set_spi_frequency(self, hz):
         rsp, _ = self._exec_command(Opcode.SET_FREQUENCY, [hz])
         return rsp.params[0]
+
+    def measure_current(self):
+        if (self.features & Feature.CURRENT_MEASUREMENT) == 0:
+            return 0.0
+
+        rsp, _ = self._exec_command(Opcode.MEASURE_CURRENT)
+        adc_iir = (((rsp.params[1] << 32) & 0xFFFFFFFF00000000) |
+                   ((rsp.params[0] <<  0) & 0x00000000FFFFFFFF))
+        return (3.3 / (4096 * 1000 * 0.033 * 2**52)) * adc_iir
 
     def enter_dfu_mode(self):
         return self._exec_command(Opcode.JUMP_BOOTLOADER, [0xA47B39FE])
