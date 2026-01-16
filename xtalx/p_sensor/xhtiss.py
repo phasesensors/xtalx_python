@@ -2,6 +2,8 @@
 # All rights reserved.
 import time
 
+import xtalx.spi_adapter
+
 from . import xhtiss_091
 from . import xhtiss_092
 from .cal_page import CalPage
@@ -145,6 +147,8 @@ class XHTISS:
                 continue
             if m._age_ms > 25:
                 continue
+            if isinstance(self.bus, xtalx.spi_adapter.SPIA):
+                m._current_amps = self.bus.measure_current()
 
             yield m
             time.sleep(poll_interval_sec)
