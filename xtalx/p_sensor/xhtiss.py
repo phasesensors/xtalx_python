@@ -147,13 +147,17 @@ class XHTISS:
             try:
                 m = self.comms.read_measurement()
             except xhtiss_092.OpcodeMismatchError as e:
-                print('Opcode mismatch: tx_cmd "%s" data "%s"' %
-                      (e.tx_cmd.hex(), e.data.hex()))
+                logging.info('%s: Opcode mismatch: tx_cmd "%s" data "%s"',
+                             self, e.tx_cmd.hex(), e.data.hex())
                 continue
             except xhtiss_092.RXChecksumError as e:
-                print('RX checksum error: tx_cmd "%s" data "%s" exp 0x%02X' %
-                      (e.tx_cmd.hex(), e.data.hex(), e.exp_csum))
+                logging.info('%s: RX checksum error: tx_cmd "%s" data "%s" '
+                             'exp 0x%02X', self, e.tx_cmd.hex(), e.data.hex(),
+                             e.exp_csum)
                 continue
+            except Exception as e:
+                logging.info('%s: Exception: %s', self, e)
+                raise
             if m._age_ms > 25:
                 continue
             if isinstance(self.bus, xtalx.spi_adapter.SPIA):
