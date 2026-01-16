@@ -20,6 +20,10 @@ FC_FLAG_TEMP_FAILED         = (1 << 2)
 FC_FLAG_PRESSURE_UPDATE     = (1 << 1)
 FC_FLAG_TEMP_UPDATE         = (1 << 0)
 
+FC_FLAG_114_NO_PRESSURE_PSI = (1 << 4)
+FC_FLAG_114_HAVE_PID_INFO   = (1 << 5)
+FC_FLAG_114_NO_TEMP_C       = (1 << 6)
+
 
 class Status(IntEnum):
     OK              = 0
@@ -161,7 +165,7 @@ class FrequencyPacket56(btype.Struct):
     _EXPECTED_SIZE      = 56
 
 
-class FrequencyPacket56_110(btype.Struct):
+class FrequencyPacket60_110(btype.Struct):
     '''
     Firmware revision 1.1.0 redoes the entire packet contents, while
     maintaining backwards-compatibility for the essential fields.
@@ -182,6 +186,37 @@ class FrequencyPacket56_110(btype.Struct):
     lores_pressure_psi     = btype.float32_t()
     lores_temp_c           = btype.float32_t()
     _EXPECTED_SIZE         = 60
+
+
+class FrequencyPacket60_114(btype.Struct):
+    '''
+    Firmware revision 1.1.4 removes lores fields and keeps only the IIR field
+    output now.  It also removes many flags and introduces mode fields for both
+    the P and T crystals.  Finally, frequencies are stored using double-
+    precision values since we have extra space from removing lores support.
+    The pressure_psi and temp_c fields are in the same place.
+    '''
+    cP                     = btype.float32_t()
+    cI                     = btype.float32_t()
+    cD                     = btype.float32_t()
+    dac_2p20               = btype.uint32_t()
+    rsrv0                  = btype.uint32_t()
+    flags                  = btype.uint16_t()
+    seq_num                = btype.uint8_t()
+    pt_mode                = btype.uint8_t()
+    pressure_psi           = btype.float64_t()
+    temp_c                 = btype.float64_t()
+    temp_hz                = btype.float64_t()
+    pressure_hz            = btype.float64_t()
+    rsrv1                  = btype.uint32_t()
+    _EXPECTED_SIZE         = 60
+
+
+class TIMMode(IntEnum):
+    INITIALIZING    = 0
+    OVERFLOW        = 1
+    UNDERFLOW       = 2
+    RUNNING         = 3
 
 
 class Measurement:
@@ -284,8 +319,8 @@ class Measurement:
             if (fp.flags & FC_FLAG_NO_TEMP_PRESSURE) == 0:
                 p = fp.pressure_psi
                 t = fp.temp_c
-        else:
-            fp = FrequencyPacket56_110.unpack(packet)
+        elif sensor.usb_dev.bcdDevice < 0x0114:
+            fp = FrequencyPacket60_110.unpack(packet)
             assert fp.flags and (fp.flags & FC_FLAGS_VALID)
             if not (fp.flags & FC_FLAG_PRESSURE_FAILED):
                 Fp  = fp.pressure_hz_1e4 / 1e4
@@ -303,6 +338,25 @@ class Measurement:
                     cI  = fp.cI
                     cD  = fp.cD
                     dac = fp.dac_2p20 / 2**20
+        else:
+            fp = FrequencyPacket60_114.unpack(packet)
+            assert fp.flags and (fp.flags & FC_FLAGS_VALID)
+            p_mode = ((fp.pt_mode >> 2) & 0x3)
+            t_mode = ((fp.pt_mode >> 0) & 0x3)
+            if p_mode == TIMMode.RUNNING:
+                Fp = fp.pressure_hz
+            if t_mode == TIMMode.RUNNING:
+                Ft = fp.temp_hz
+            if (fp.flags & FC_FLAG_114_NO_PRESSURE_PSI) == 0:
+                p = fp.pressure_psi
+            if (fp.flags & FC_FLAG_114_NO_TEMP_C) == 0:
+                t = fp.temp_c
+            if (fp.flags & FC_FLAG_114_HAVE_PID_INFO):
+                cP  = fp.cP
+                cI  = fp.cI
+                cD  = fp.cD
+                dac = fp.dac_2p20 / 2**20
+
         flags = fp.flags if fp.flags & FC_FLAGS_VALID else None
 
         return Measurement(sensor, mt, p, t, Fp, Ft, lp, lt, Flp, Flt, cP, cI,
