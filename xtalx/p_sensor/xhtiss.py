@@ -1,6 +1,7 @@
 # Copyright (c) 2025 by Phase Advanced Sensor Systems, Inc.
 # All rights reserved.
 import time
+import logging
 
 import xtalx.spi_adapter
 
@@ -43,10 +44,18 @@ class XHTISS:
         # Probe the target firmware.
         tx_cmd = b'\x34\x00\x00'
         tx_cmd = tx_cmd + bytes([xhtiss_092.crc8(tx_cmd)])
+        retries = 0
         while True:
             # Send a NOP command.  This will be interpreted as an unsupported
             # command by 0.9.1 firmware.
             rsp = self.bus.transact(tx_cmd)
+            if rsp == b'????':
+                retries += 1
+                if retries == 10:
+                    logging.info('Repeated probe rsp: %s, 0.9.1 firmware '
+                                 'likely dead', rsp)
+                    raise xhtiss_091.DeadFirmwareException()
+                continue
             if rsp == b'\xAA\xBB??':
                 return xhtiss_091.Comms(self)
 
