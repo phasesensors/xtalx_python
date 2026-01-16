@@ -2,6 +2,7 @@
 import threading
 import random
 import errno
+import struct
 import time
 from enum import IntEnum
 
@@ -11,6 +12,7 @@ import usb.util
 import btype
 
 from .exception import XtalXException
+from .cal_page import CalPage
 
 
 FC_FLAGS_VALID              = (1 << 15)
@@ -41,19 +43,26 @@ class Status(IntEnum):
 
 
 class CommandException(Exception):
-    def __init__(self, rsp):
+    def __init__(self, rsp, rx_data):
         super().__init__(
             'Command exception: %s (%s)' % (Status.rsp_to_status_str(rsp), rsp))
         self.rsp = rsp
+        self.rx_data = rx_data
 
 
 class Opcode(IntEnum):
-    GET_INFO        = 1
-    GET_PID_INFO    = 2
-    SET_PID_INFO    = 3
-    DISABLE_PID     = 4
-    ENABLE_PID      = 5
-    SET_DAC_VALUE   = 6
+    # System commands.
+    GET_INFO        = 0x0001
+    GET_PID_INFO    = 0x0002
+    SET_PID_INFO    = 0x0003
+    DISABLE_PID     = 0x0004
+    ENABLE_PID      = 0x0005
+    SET_DAC_VALUE   = 0x0006
+
+    # Flash commands.
+    FLASH_READ_CAL  = 0xBA61
+
+    # Illegal opcode.
     BAD_OPCODE      = 0xCCCC
 
 
@@ -500,22 +509,37 @@ class XTI:
                                str((self.fw_version >> 4) & 0xF) + '.' +
                                str((self.fw_version >> 0) & 0xF))
 
-        if self.usb_dev.bcdDevice >= 0x0103:
-            try:
-                self.report_id = int(usb.util.get_string(usb_dev, 15))
-            except ValueError:
-                self.report_id = None
-        else:
-            self.report_id = None
-
         if self.usb_dev.bcdDevice >= 0x0110:
+            self._synchronize()
             self.tag = random.randint(1, 0xFFFF)
-            self._set_measurement_config()
             self.xinfo = self._get_info()
             if self.xinfo.flags & (1 << 0):
                 self.pinfo = self._get_pid_info()
             else:
                 self.pinfo = None
+
+        self.report_id = None
+        self.poly_psi  = None
+        self.poly_temp = None
+        self.cal_page  = None
+        if self.usb_dev.bcdDevice >= 0x0114:
+            cp0_data, cp1_data = self.read_calibration_pages_raw()
+            self._cal_pages = [CalPage.unpack(cp0_data),
+                               CalPage.unpack(cp1_data)]
+            if self._cal_pages[0].is_valid():
+                self.cal_page = self._cal_pages[0]
+            elif self._cal_pages[1].is_valid():
+                self.cal_page = self._cal_pages[1]
+
+        if self.cal_page is not None:
+            self.report_id = self.cal_page.get_report_id()
+            self.poly_psi, self.poly_temp = self.cal_page.get_polynomials()
+
+        if self.report_id is None:
+            try:
+                self.report_id = int(usb.util.get_string(usb_dev, 15))
+            except ValueError:
+                pass
 
         self.usb_path = '%s:%s' % (
             usb_dev.bus, '.'.join('%u' % n for n in usb_dev.port_numbers))
@@ -539,42 +563,51 @@ class XTI:
     def _set_measurement_config(self):
         self._set_configuration(2)
 
+    def _synchronize(self):
+        self._set_measurement_config()
+        while True:
+            try:
+                self.usb_dev.read(self.RSP_EP, 16384, timeout=100)
+            except usb.core.USBTimeoutError:
+                break
+
     def _alloc_tag(self):
         tag      = self.tag
         self.tag = 1 if self.tag == 0xFFFF else self.tag + 1
         return tag
 
-    def _send_command(self, opcode, flags, params, bulk_data, timeout):
+    def _exec_command(self, opcode, flags=0, params=b'', bulk_data=b'',
+                      timeout=1000, rx_len=0):
+        params = params + bytes(48 - len(params))
+
         tag  = self._alloc_tag()
         hdr  = CommandHeader(opcode=opcode, tag=tag, flags=flags)
-        data = hdr.pack() + params + bytes(48 - len(params)) + bulk_data
-        size = self.usb_dev.write(self.CMD_EP, data, timeout=timeout)
-        assert size == len(data)
-        return tag
+        data = hdr.pack() + params + bulk_data
+        l    = self.usb_dev.write(self.CMD_EP, data, timeout=timeout)
+        assert l == len(data)
 
-    def _recv_response(self, tag, timeout, cls=Response):
-        data = self.usb_dev.read(self.RSP_EP, Response._STRUCT.size,
+        data = self.usb_dev.read(self.RSP_EP, Response._STRUCT.size + rx_len,
                                  timeout=timeout)
-        assert len(data) == Response._STRUCT.size
-        rsp = cls.unpack_from(data)
-        assert rsp.tag == tag
+        assert len(data) >= Response._STRUCT.size
+        rsp_bytes = data[:Response._STRUCT.size]
+        rsp = Response.unpack(rsp_bytes)
+        assert rsp.opcode == opcode
+        assert rsp.tag    == tag
 
+        rx_data = bytes(data[Response._STRUCT.size:])
         if rsp.status != Status.OK:
-            rsp.opcode = Opcode(rsp.opcode)
-            raise CommandException(rsp)
+            raise CommandException(rsp, rx_data)
 
-        return rsp
-
-    def _exec_command(self, opcode, flags=0, params=b'', bulk_data=b'',
-                      timeout=1000, cls=Response):
-        tag = self._send_command(opcode, flags, params, bulk_data, timeout)
-        return self._recv_response(tag, timeout, cls=cls)
+        assert len(rx_data) == rx_len
+        return rsp, rsp_bytes, rx_data
 
     def _get_info(self):
-        return self._exec_command(Opcode.GET_INFO, cls=GetInfoResponse)
+        _, rsp_bytes, _ = self._exec_command(Opcode.GET_INFO)
+        return GetInfoResponse.unpack_from(rsp_bytes)
 
     def _get_pid_info(self):
-        return self._exec_command(Opcode.GET_PID_INFO, cls=GetPIDInfoResponse)
+        _, rsp_bytes, _ = self._exec_command(Opcode.GET_PID_INFO)
+        return GetPIDInfoResponse.unpack_from(rsp_bytes)
 
     def _set_pid_info(self, Kp=None, Ki=None, Kd=None, setpoint_c=None):
         flags = 0
@@ -588,18 +621,60 @@ class XTI:
             flags |= (1 << 3)
         payload = SetPIDInfoPayload(Kp=(Kp or 0), Ki=(Ki or 0), Kd=(Kd or 0),
                                     setpoint_c=(setpoint_c or 0))
-        return self._exec_command(Opcode.SET_PID_INFO, flags, payload.pack())
+        return self._exec_command(Opcode.SET_PID_INFO, flags, payload.pack())[0]
 
     def _disable_pid(self):
-        return self._exec_command(Opcode.DISABLE_PID)
+        return self._exec_command(Opcode.DISABLE_PID)[0]
 
     def _enable_pid(self):
-        return self._exec_command(Opcode.ENABLE_PID)
+        return self._exec_command(Opcode.ENABLE_PID)[0]
 
     def _set_dac_value(self, dac_value):
         return self._exec_command(
                 Opcode.SET_DAC_VALUE,
-                params=SetDACValuePayload(dac_value=dac_value).pack())
+                params=SetDACValuePayload(dac_value=dac_value).pack())[0]
+
+    def read_calibration_pages_raw(self):
+        '''
+        Returns the raw data bytes for each of the two calibration pages stored
+        in flash.  Returns a tuple:
+
+            (cal_data_0, cal_data_1)
+        '''
+        if self.usb_dev.bcdDevice < 0x0114:
+            return None, None
+
+        _, _, cal_data_0 = self._exec_command(Opcode.FLASH_READ_CAL,
+                                              params=struct.pack('<I', 0),
+                                              rx_len=2048)
+        _, _, cal_data_1 = self._exec_command(Opcode.FLASH_READ_CAL,
+                                              params=struct.pack('<I', 1),
+                                              rx_len=2048)
+        return cal_data_0, cal_data_1
+
+    def read_calibration_pages(self):
+        '''
+        Returns CalPage structs for each calibration page in the sensor flash,
+        even if the page(s) are missing or corrupt.
+        '''
+        if self.usb_dev.bcdDevice < 0x0114:
+            return None, None
+
+        cp0_data, cp1_data = self.read_calibration_pages_raw()
+        cp0 = CalPage.unpack(cp0_data)
+        cp1 = CalPage.unpack(cp1_data)
+        return cp0, cp1
+
+    def read_valid_calibration_page(self):
+        '''
+        Returns CalPage struct from the sensor flash.  Returns None if the
+        calibration is not present or both pages are corrupted.
+        '''
+        if self.usb_dev.bcdDevice < 0x0114:
+            return None
+
+        cp0, cp1 = self.read_calibration_pages()
+        return cp0 if cp0.is_valid() else cp1 if cp1.is_valid() else None
 
     def is_pid_supported(self):
         return self.pinfo is not None
