@@ -3,6 +3,7 @@
 import btype
 
 from .xti import Measurement
+from .exception import XtalXException
 
 
 class FrequencyResponse(btype.Struct, endian='<'):
@@ -35,6 +36,14 @@ class FullResponse(btype.Struct, endian='<'):
     _EXPECTED_SIZE = 33
 
 
+class DeadFirmwareException(XtalXException):
+    '''
+    While probing, the firmware repeatedly returned '????'.
+    '''
+    def __str__(self):
+        return 'DeadFirmwareException()'
+
+
 class Comms:
     '''
     Communication protocol for sensor firmware 0.9.1 or below.
@@ -56,7 +65,10 @@ class Comms:
 
     def exec_cmd(self, cmd, rsp_len):
         cmd_bytes = bytes([cmd, 0x00]) + b'\x00'*rsp_len
-        return self.xhtiss.bus.transact(cmd_bytes)[2:]
+        rsp = self.xhtiss.bus.transact(cmd_bytes)
+        if rsp == b'?'*len(rsp):
+            raise DeadFirmwareException()
+        return rsp[2:]
 
     def read_frequencies(self):
         data = self.exec_cmd(0x19, FrequencyResponse._STRUCT.size)
