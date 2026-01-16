@@ -18,6 +18,7 @@ MODULES := \
 	xtalx/tools/modbus_adapter/*.py \
 	xtalx/tools/p_sensor/*.py \
 	xtalx/tools/serial/*.py \
+	xtalx/tools/spi_adapter/*.py \
 	xtalx/tools/usb/*.py \
 	xtalx/tools/z_sensor/*.py
 PYTHON := python3
