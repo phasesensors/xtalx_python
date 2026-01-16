@@ -1,6 +1,6 @@
 # Copyright (c) 2021-2024 by Phase Advanced Sensor Systems Corp.
 MODULE      := xtalx
-MODULE_VERS := 1.3.8
+MODULE_VERS := 1.3.9
 MODULE_DEPS :=
 MODULES := \
 	setup.cfg \
@@ -18,6 +18,7 @@ MODULES := \
 	xtalx/tools/modbus_adapter/*.py \
 	xtalx/tools/p_sensor/*.py \
 	xtalx/tools/serial/*.py \
+	xtalx/tools/spi_adapter/*.py \
 	xtalx/tools/usb/*.py \
 	xtalx/tools/z_sensor/*.py
 PYTHON := python3
