@@ -407,6 +407,16 @@ class Measurement:
             'lores_temp_freq_hz'     : self.lores_temp_freq,
         }
 
+    def to_lhp_stsdb_point(self, time_ns=None):
+        time_ns = time_ns or self.sensor.time_ns_increasing()
+        return {
+            'time_ns'   : time_ns,
+            'cP'        : self.cP,
+            'cI'        : self.cI,
+            'cD'        : self.cD,
+            'dac'       : self.dac,
+        }
+
 
 class XTI:
     TELEMETRY_EP    = 0x81
