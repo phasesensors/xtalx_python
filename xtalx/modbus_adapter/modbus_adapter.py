@@ -11,6 +11,7 @@ class Feature(IntEnum):
 
 class Status(IntEnum):
     XACT_FAILED     = 7
+    XACT_FAILED_2   = 100
 
     @staticmethod
     def rsp_to_status_str(rsp):
@@ -48,6 +49,11 @@ class MBA(xtalx.tools.modbus.Bus,
                                      git_sha1_index=6,
                                      default_configuration=0x80)
 
+        if self.fw_version < 0x093:
+            self.xact_failed_code = Status.XACT_FAILED
+        else:
+            self.xact_failed_code = Status.XACT_FAILED_2
+
         self.features = 0
         if self.serial_num.startswith('MBA-2'):
             if self.fw_version >= 0x092:
@@ -83,7 +89,7 @@ class MBA(xtalx.tools.modbus.Bus,
                                             [addr, response_time_ms], data,
                                             timeout_ms=(response_time_ms + 100))
         except xtalx.usbcmd.CommandException as e:
-            if e.rsp.status != Status.XACT_FAILED:
+            if e.rsp.status != self.xact_failed_code:
                 raise
 
             if e.rsp.params[0] == 0:
