@@ -285,7 +285,8 @@ class Measurement:
     '''
     def __init__(self, sensor, mcu_temp_c, pressure_psi, temp_c, pressure_freq,
                  temp_freq, lores_pressure_psi, lores_temp_c,
-                 lores_pressure_freq, lores_temp_freq, cP, cI, cD, dac, flags):
+                 lores_pressure_freq, lores_temp_freq, cP, cI, cD, dac, flags,
+                 seq_num=None):
         self.sensor              = sensor
         self.mcu_temp_c          = mcu_temp_c
         self.pressure_psi        = pressure_psi
@@ -301,12 +302,14 @@ class Measurement:
         self.cD                  = cD
         self.dac                 = dac
         self.flags               = flags
+        self.seq_num             = seq_num
 
     @staticmethod
     def _from_packet(sensor, packet):
         mt, p, t, Fp, Ft = None, None, None, None, None
         lp, lt, Flp, Flt = None, None, None, None
         cP, cI, cD, dac  = None, None, None, None
+        seq_num          = None
 
         if sensor.usb_dev.bcdDevice < 0x0107:
             if len(packet) == 24:
@@ -365,11 +368,12 @@ class Measurement:
                 cI  = fp.cI
                 cD  = fp.cD
                 dac = fp.dac_2p20 / 2**20
+            seq_num = fp.seq_num
 
         flags = fp.flags if fp.flags & FC_FLAGS_VALID else None
 
         return Measurement(sensor, mt, p, t, Fp, Ft, lp, lt, Flp, Flt, cP, cI,
-                           cD, dac, flags)
+                           cD, dac, flags, seq_num)
 
     def tostring(self, verbose=False):
         s = '%s: ' % self.sensor
