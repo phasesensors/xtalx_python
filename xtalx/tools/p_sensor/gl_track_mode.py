@@ -238,7 +238,9 @@ def measure_thread(x, tw, csv_file, display_frequencies):
                 temp = m.temp_c if m.temp_c is not None else math.nan
                 pressure = (m.pressure_psi if m.pressure_psi is not None
                             else math.nan)
-            csv_file.write('%.6f,%.6f,%.5f,%.5f\n' % (t, dt, temp, pressure))
+            seq_num = m.seq_num or 0
+            csv_file.write('%u,%.6f,%.6f,%.5f,%.5f\n'
+                           % (seq_num, t, dt, temp, pressure))
             csv_file.flush()
 
 
@@ -273,9 +275,9 @@ def main(args):
 
     if args.csv_file:
         if args.display_frequencies:
-            hdr = 'time,dt,temp_hz,pressure_hz\n'
+            hdr = 'seq_num,time,dt,temp_hz,pressure_hz\n'
         else:
-            hdr = 'time,dt,temp_c,pressure_psi\n'
+            hdr = 'seq_num,time,dt,temp_c,pressure_psi\n'
         csv_file = open(  # pylint: disable=R1732
             args.csv_file, 'a+', encoding='utf8')
 
