@@ -1,7 +1,7 @@
 # Copyright (c) 2025 by Phase Advanced Sensor Systems Corp.
 import xtalx.tools.usb
 
-from .modbus_adapter import MBA, CommandException
+from .modbus_adapter import MBA
 
 
 def find_mba(**kwargs):
@@ -23,8 +23,7 @@ def make_mba(usb_dev, **kwargs):
     raise Exception('Unrecognized device: %s' % usb_dev)
 
 
-__all__ = ['CommandException',
-           'find_mba',
+__all__ = ['find_mba',
            'find_one_mba',
            'make_mba',
            'MBA',

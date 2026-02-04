@@ -6,6 +6,7 @@ import time
 import sys
 
 import xtalx.modbus_adapter
+import xtalx.usbcmd
 from xtalx.tools.iter import prange
 
 
@@ -59,7 +60,7 @@ def main(args):
                                          '%s\x1B[0K\r\n'
                                          % (addr, str(type(e)) + str(e)))
                         continue
-                    except xtalx.modbus_adapter.CommandException as e:
+                    except xtalx.usbcmd.CommandException as e:
                         sys.stdout.write('\r**** Device 0x%02X error: '
                                          '%s\x1B[0K\r\n'
                                          % (addr, str(type(e)) + str(e)))
