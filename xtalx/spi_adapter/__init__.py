@@ -1,7 +1,7 @@
 # Copyright (c) 2025 by Phase Advanced Sensor Systems Corp.
 import xtalx.tools.usb
 
-from .spi_adapter import SPIA, CommandException
+from .spi_adapter import SPIA
 
 
 def find_spia(**kwargs):
@@ -23,8 +23,7 @@ def make_spia(usb_dev, **kwargs):
     raise Exception('Unrecognized device: %s' % usb_dev)
 
 
-__all__ = ['CommandException',
-           'find_spia',
+__all__ = ['find_spia',
            'find_one_spia',
            'make_spia',
            'SPIA',
