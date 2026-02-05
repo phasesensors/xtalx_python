@@ -58,3 +58,31 @@ class TinCan:
             p['fields']['viscosity_cp'] = float(fw_fit.viscosity_cp)
 
         return p
+
+    def make_stsdb_point(self, t0_ns, duration_ms, fw_fit, hires, temp_freq):
+        p = {
+            'time_ns'       : t0_ns,
+            'hires'         : hires,
+            'duration_ms'   : duration_ms,
+        }
+
+        if temp_freq is not None:
+            p['temp_freq_hz'] = temp_freq
+
+        if fw_fit is None:
+            return p
+
+        p.update({
+            'peak_hz'   : fw_fit.peak_hz,
+            'peak_fwhm' : fw_fit.peak_fwhm,
+            'RR'        : fw_fit.RR,
+        })
+
+        if fw_fit.temp_c is not None:
+            p['temp_c'] = fw_fit.temp_c
+        if fw_fit.density_g_per_ml is not None:
+            p['density_g_per_ml'] = fw_fit.density_g_per_ml
+        if fw_fit.viscosity_cp is not None:
+            p['viscosity_cp'] = fw_fit.viscosity_cp
+
+        return p
