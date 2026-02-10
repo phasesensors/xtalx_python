@@ -15,7 +15,7 @@ class XYSeries:
         iL, iH = np.searchsorted(self.X, coords)
         X      = np.concatenate(([x0], self.X[iL:iH], [x1]))
         Y      = np.concatenate(([yL], self.Y[iL:iH], [yH]))
-        A      = np.trapz(Y, x=X)
+        A      = np.trapezoid(Y, x=X)
 
         return A, x0, x1
 
