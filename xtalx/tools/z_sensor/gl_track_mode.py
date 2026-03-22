@@ -82,6 +82,8 @@ class TrackerWindow(glotlib.Window, Delegate):
 
         if pq and isinstance(pq, simple_tsdb.PushQueue):
             self.stsdb_path = 'sensor_data/tincan_data/' + tc.serial_num
+            self.stsdb_sweep_path = ('sensor_data/tincan_sweep_data/' +
+                                     tc.serial_num)
 
         volts = tc.dac_to_a(z_args.amplitude)
         if volts:
@@ -415,6 +417,8 @@ class TrackerWindow(glotlib.Window, Delegate):
                 p = self.make_stsdb_point(t0_ns, duration_ms, fw_fit, hires,
                                           temp_freq)
                 self.pq.append(p, self.stsdb_path)
+                ps = self.make_stsdb_sweep_points(t0_ns, points)
+                self.pq.append_list(ps, self.stsdb_sweep_path)
             else:
                 p = self.make_influx_point(t0_ns, duration_ms, fw_fit, hires,
                                            temp_freq)
@@ -423,6 +427,9 @@ class TrackerWindow(glotlib.Window, Delegate):
     def make_stsdb_point(self, t0_ns, duration_ms, fw_fit, hires, temp_freq):
         return self.tc.make_stsdb_point(t0_ns, duration_ms, fw_fit, hires,
                                         temp_freq)
+
+    def make_stsdb_sweep_points(self, t0_ns, points):
+        return self.tc.make_stsdb_sweep_points(t0_ns, points)
 
     def make_influx_point(self, t0_ns, duration_ms, fw_fit, hires, temp_freq):
         return self.tc.make_influx_point(t0_ns, duration_ms, fw_fit, hires,
