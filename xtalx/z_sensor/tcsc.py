@@ -653,20 +653,30 @@ class TCSC(TinCan):
         return sleep_ms / 1000, sleep_ms
 
     def read_sweep_data(self, theta_deg=0):
+        '''
+        Returns an array of ParsedSweepResult objects containing the results of
+        the sweep.  Each element is the result of the corresponding element in
+        the _sweep_params array that was built in sweep_async().
+        '''
         size = SweepResult._STRUCT.size * len(self._sweep_params)
         data = self.usb_dev.read(self.RSP_EP, size)
         assert len(data) == size
 
+        theta_deg = theta_deg % 360
+        theta_rad = theta_deg * math.pi / 180
+
         results = []
-        while data:
-            sr = SweepResult.unpack(data[:SweepResult._STRUCT.size])
+        offset  = 0
+        for freq, nbufs in self._sweep_params:
+            sr = SweepResult.unpack_from(data, offset=offset)
             sr.offset[0] += self.ADC_MAX / 2
             sr.offset[1] += self.ADC_MAX / 2
-            results.append(sr)
-            data = data[SweepResult._STRUCT.size:]
+            results.append(ParsedSweepResult(sr, self.einfo.r_feedback,
+                                             freq, nbufs, self.yield_Y,
+                                             theta_rad))
+            offset += SweepResult._STRUCT.size
 
-        return SweepData(results, self._sweep_params, self.einfo.r_feedback,
-                         self.yield_Y, theta_deg)
+        return results
 
     def get_sweep_fit(self, temp_hz, theta_deg=0):
         flags = 0
