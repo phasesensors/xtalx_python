@@ -81,9 +81,7 @@ class TrackerWindow(glotlib.Window, Delegate):
         self.end_sweep_time   = None
 
         if pq and isinstance(pq, simple_tsdb.PushQueue):
-            self.stsdb_path = config.stsdb_measurement + '/' + tc.serial_num
-        else:
-            self.stsdb_path = None
+            self.stsdb_path = 'sensor_data/tincan_data/' + tc.serial_num
 
         volts = tc.dac_to_a(z_args.amplitude)
         if volts:
@@ -413,7 +411,7 @@ class TrackerWindow(glotlib.Window, Delegate):
         self.data_callback(pt.sweep, fw_fit, points, T, D, V, hires)
 
         if self.pq:
-            if self.stsdb_path:
+            if isinstance(self.pq, simple_tsdb.PushQueue):
                 p = self.make_stsdb_point(t0_ns, duration_ms, fw_fit, hires,
                                           temp_freq)
                 self.pq.append(p, self.stsdb_path)
