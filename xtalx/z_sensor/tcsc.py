@@ -342,16 +342,6 @@ class ParsedSweepResult:
         self.z = self.Y if yield_Y else self.Z
 
 
-class SweepData:
-    def __init__(self, sweep_results, sweep_params, rf, yield_Y, theta_deg):
-        self.results = []
-        theta_deg = theta_deg % 360
-        theta_rad = theta_deg * math.pi / 180
-        for sr, (freq, nbufs) in zip(sweep_results, sweep_params):
-            self.results.append(ParsedSweepResult(sr, rf, freq, nbufs, yield_Y,
-                                                  theta_rad))
-
-
 class TCSC(TinCan):
     CMD_EP   = 0x01
     RSP_EP   = 0x82
