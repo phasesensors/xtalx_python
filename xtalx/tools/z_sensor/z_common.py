@@ -122,17 +122,14 @@ def parse_config(rv):
     pq = None
     with open(rv.config, encoding='utf8') as f:
         c = Config(f.readlines(), [])
-        if c.has_keys(['influx_host', 'influx_user', 'influx_password',
-                       'influx_database']):
+        if rv.use_simple_tsdb:
+            pq = simple_tsdb.PushQueue('127.0.0.1', 4000)
+        elif c.has_keys(['influx_host', 'influx_user', 'influx_password',
+                         'influx_database']):
             pq = InfluxDBPushQueue(c.influx_host, 8086, c.influx_user,
                                    c.influx_password,
                                    database=c.influx_database, ssl=True,
                                    verify_ssl=True, timeout=100)
-        elif c.has_keys(['stsdb_host', 'stsdb_user', 'stsdb_password',
-                         'stsdb_measurement']):
-            pq = simple_tsdb.PushQueue(c.stsdb_host, 4000,
-                                       username=c.stsdb_user,
-                                       password=c.stsdb_password)
 
     return c, pq
 
@@ -169,4 +166,5 @@ def add_arguments(parser):
     parser.add_argument('--fit-file', '-f')
     parser.add_argument('--sensor', '-s')
     parser.add_argument('--config', '-c')
+    parser.add_argument('--use-simple-tsdb', action='store_true')
     parser.add_argument('--track-impedance', action='store_true')

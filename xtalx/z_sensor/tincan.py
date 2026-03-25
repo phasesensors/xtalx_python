@@ -86,3 +86,22 @@ class TinCan:
             p['viscosity_cp'] = fw_fit.viscosity_cp
 
         return p
+
+    def make_stsdb_sweep_points(self, t0_ns, points):
+        '''
+        Given a list of ParsedSweepResults, convert this into a sequence of
+        simple_tsdb points, with each of the sweep points 1 ns after the
+        preceding one.  This "splats" all the points right after the t0_ns
+        value for a given sweep.  Since each frequency in a sweep is measured
+        for much longer than 1 ns, there is no danger of collision.
+        '''
+        return [
+            {
+                'time_ns'   : t0_ns + i,
+                'f_hz'      : p.f,
+                'z_real'    : p.Z.real,
+                'z_imag'    : p.Z.imag,
+                'RR'        : p.RR[1],
+            }
+            for i, p in enumerate(points)
+        ]

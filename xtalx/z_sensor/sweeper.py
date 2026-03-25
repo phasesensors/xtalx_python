@@ -90,12 +90,12 @@ class Sweeper:
                 self.sleep_interruptible(dt)
             except SleepInterruptedException:
                 break
-            sd = self.tc.read_sweep_data()
+            points = self.tc.read_sweep_data()
 
-            for r, b in zip(sd.results, block):
+            for r, b in zip(points, block):
                 assert r.nbufs == b[1]
 
-            self.data_callback(sweep, t0_ns, pos, sd.results, self.amplitude)
+            self.data_callback(sweep, t0_ns, pos, points, self.amplitude)
 
             if pos + nfreqs == len(self.freq_tuples):
                 self.tc.info('Sweep %u complete.' % sweep)

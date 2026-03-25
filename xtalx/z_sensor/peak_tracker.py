@@ -95,7 +95,7 @@ class PeakTracker:
                                              hires, ftups[0][0], ftups[-1][0])
 
     def _read_sweep_points(self):
-        points = self.tc.read_sweep_data(theta_deg=self.theta_deg).results
+        points = self.tc.read_sweep_data(theta_deg=self.theta_deg)
         max_amplitude = max(p.amplitude[1] for p in points)
         if max_amplitude >= self.tc.ADC_MAX / 2:
             self.tc.warn('Possible amplitude clipping.  Max amplitude '
