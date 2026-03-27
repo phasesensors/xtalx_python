@@ -173,22 +173,6 @@ class PeakTracker:
         self._start_sweep(ftups, True)
         self._transition(State.HIRES_SWEEP_WAIT_DATA)
 
-    def _get_temp_freq(self):
-        self.tc.set_t_enable(True)
-        time.sleep(0.5)
-        t0_crystal_ticks, t0_cpu_ticks = self.tc.read_temp()
-        time.sleep(0.5)
-        t1_crystal_ticks, t1_cpu_ticks = self.tc.read_temp()
-        self.tc.set_t_enable(False)
-        time.sleep(0.5)
-
-        dt = (t1_cpu_ticks - t0_cpu_ticks) / self.tc.CPU_FREQ
-        if dt == 0:
-            return None
-
-        dcrystal = (t1_crystal_ticks - t0_crystal_ticks) & 0xFFFFFFFF
-        return dcrystal * 8 / dt
-
     def _handle_timeout(self):
         if self.state in (State.PEAK_SEARCH_WAIT_DATA,
                           State.HIRES_SWEEP_WAIT_DATA):
@@ -202,7 +186,7 @@ class PeakTracker:
 
         t0_ns = time.time_ns()
 
-        temp_freq      = self._get_temp_freq() or 0
+        temp_freq      = self.tc.get_temp_freq() or 0
         fw_fit, temp_c = self._get_sweep_fit(temp_freq)
         hires          = (self.state == State.HIRES_SWEEP_WAIT_DATA)
 

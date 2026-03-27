@@ -247,6 +247,14 @@ class ReadTempResponse(btype.Struct):
     opcode          = btype.uint16_t()
     tag             = btype.uint16_t()
     status          = btype.uint32_t()
+    temp_freq_hz    = btype.float64_t()
+    _EXPECTED_SIZE  = 16
+
+
+class ReadTempResponseOld(btype.Struct):
+    opcode          = btype.uint16_t()
+    tag             = btype.uint16_t()
+    status          = btype.uint32_t()
     cpu_ticks       = btype.uint64_t()
     osc_ticks       = btype.uint32_t()
     _EXPECTED_SIZE  = 20
@@ -718,9 +726,36 @@ class TCSC(TinCan):
         params = SetTEnablePayload(enabled=enabled).pack()
         self._exec_command(Opcode.SET_T_ENABLE, params)
 
-    def read_temp(self):
-        rsp = self._exec_command(Opcode.READ_TEMP, b'', cls=ReadTempResponse)
+    def _read_temp_old(self):
+        rsp = self._exec_command(Opcode.READ_TEMP, b'', cls=ReadTempResponseOld)
         return rsp.osc_ticks, rsp.cpu_ticks
+
+    def get_temp_freq(self):
+        # New firmware means we are on a new sensor and read the temp frequency
+        # directly.
+        if self.fw_version >= 0x111:
+            rsp = self._exec_command(Opcode.READ_TEMP, b'',
+                                     cls=ReadTempResponse)
+            if math.isinf(rsp.temp_freq_hz) or math.isnan(rsp.temp_freq_hz):
+                return None
+            return rsp.temp_freq_hz
+
+        # Old firmware means we quiesce the temp crystal when not actively
+        # measuring it.
+        self.set_t_enable(True)
+        time.sleep(0.5)
+        t0_crystal_ticks, t0_cpu_ticks = self._read_temp_old()
+        time.sleep(0.5)
+        t1_crystal_ticks, t1_cpu_ticks = self._read_temp_old()
+        self.set_t_enable(False)
+        time.sleep(0.5)
+
+        dt = (t1_cpu_ticks - t0_cpu_ticks) / self.CPU_FREQ
+        if dt == 0:
+            return None
+
+        dcrystal = (t1_crystal_ticks - t0_crystal_ticks) & 0xFFFFFFFF
+        return dcrystal * 8 / dt
 
     def eval_freqs(self, temp_hz, center_hz, width_hz):
         '''

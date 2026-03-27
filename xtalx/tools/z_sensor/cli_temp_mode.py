@@ -14,20 +14,13 @@ def temp_thread(tc, interval_secs):
     tc.start_fixed_out(0, 0)
     tc.set_t_enable(True)
 
-    t0_crystal_ticks, t0_cpu_ticks = tc.read_temp()
     while TEMP_RUNNING:
         time.sleep(interval_secs)
-        t1_crystal_ticks, t1_cpu_ticks = tc.read_temp()
+        temp_hz = tc.get_temp_freq()
 
-        dt = (t1_cpu_ticks - t0_cpu_ticks) / tc.CPU_FREQ
-        dcrystal = (t1_crystal_ticks - t0_crystal_ticks) & 0xFFFFFFFF
-        t0_crystal_ticks, t0_cpu_ticks = t1_crystal_ticks, t1_cpu_ticks
-
-        if dt == 0:
+        if temp_hz is None:
             tc.warn('Temp crystal does not appear to be ticking.')
             continue
-
-        temp_hz = dcrystal * 8 / dt
 
         temp_c, _, _ = tc.eval_freqs(temp_hz, 0, 0)
         tc.info('temp_hz %s T %s' % (temp_hz, temp_c))
@@ -38,7 +31,12 @@ def main(args):
 
     dev = xtalx.z_sensor.find_one(serial_number=args.sensor)
     tc  = xtalx.z_sensor.make(dev, verbose=args.verbose)
-    t   = threading.Thread(target=temp_thread, args=(tc, args.interval_secs))
+
+    if tc.fw_version < 0x111:
+        tc.warn('Firmware version 1.1.1 required.')
+        return
+
+    t = threading.Thread(target=temp_thread, args=(tc, args.interval_secs))
     t.start()
 
     try:
