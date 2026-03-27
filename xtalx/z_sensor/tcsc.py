@@ -343,10 +343,6 @@ class ParsedSweepResult:
 
 
 class TCSC(TinCan):
-    CMD_EP   = 0x01
-    RSP_EP   = 0x82
-    SCOPE_EP = 0x83
-
     DAC_MAX  = None
     ADC_MAX  = None
     ADC_KEYS = ()
@@ -370,6 +366,14 @@ class TCSC(TinCan):
         if self.fw_version < 0x101:
             raise Exception('Firmware version of 0x%X not supported.' %
                             self.fw_version)
+        if self.fw_version < 0x111:
+            self.CMD_EP   = 0x01
+            self.RSP_EP   = 0x82
+            self.SCOPE_EP = 0x83
+        else:
+            self.CMD_EP   = 0x01
+            self.RSP_EP   = 0x81
+            self.SCOPE_EP = 0x83
 
         self.tag = random.randint(1, 0xFFFF)
 
@@ -399,8 +403,17 @@ class TCSC(TinCan):
             usb.util.dispose_resources(usb_dev)
             usb_dev.set_configuration(bConfigurationValue)
 
+    def _write_cmd(self, data, **kwargs):
+        return self.usb_dev.write(self.CMD_EP, data, **kwargs)
+
+    def _read_rsp(self, size, **kwargs):
+        return self.usb_dev.read(self.RSP_EP, size, **kwargs)
+
+    def _read_scope(self, size, **kwargs):
+        return self.usb_dev.read(self.SCOPE_EP, size, **kwargs)
+
     def _send_abort(self):
-        self.usb_dev.write(self.CMD_EP, b'')
+        self._write_cmd(b'')
 
     def _alloc_tag(self):
         tag      = self.tag
@@ -414,15 +427,15 @@ class TCSC(TinCan):
         data = hdr.pack() + bytes(48)
         junk = 0
         while True:
-            self.usb_dev.write(self.CMD_EP, data)
-            rsp = self.usb_dev.read(self.RSP_EP, 64, timeout=100)
+            self._write_cmd(data)
+            rsp = self._read_rsp(64, timeout=100)
             if len(rsp) == 56:
                 break
 
             junk += len(rsp)
 
-        self.usb_dev.write(self.CMD_EP, data)
-        data = self.usb_dev.read(self.RSP_EP, 64)
+        self._write_cmd(data)
+        data = self._read_rsp(64)
         assert len(data) == 56
 
         rsp = Response.unpack(data)
@@ -433,8 +446,7 @@ class TCSC(TinCan):
         junk_len = 0
         try:
             while True:
-                junk_len += len(self.usb_dev.read(self.SCOPE_EP, 64,
-                                                  timeout=100))
+                junk_len += len(self._read_scope(64, timeout=100))
         except usb.core.USBTimeoutError:
             pass
 
@@ -444,16 +456,15 @@ class TCSC(TinCan):
         tag  = self._alloc_tag()
         hdr  = CommandHeader(opcode=opcode, tag=tag)
         data = hdr.pack() + params + bytes(48 - len(params)) + bulk_data
-        size = self.usb_dev.write(self.CMD_EP, data, timeout=timeout)
+        size = self._write_cmd(data, timeout=timeout)
         assert size == len(data)
         if (len(data) % 64) == 0:
             if len(data) < self.ginfo.cmd_buf_len:
-                self.usb_dev.write(self.CMD_EP, b'')
+                self._write_cmd(b'')
         return tag
 
     def _recv_response(self, tag, timeout, cls=Response):
-        data = self.usb_dev.read(self.RSP_EP, Response._STRUCT.size,
-                                 timeout=timeout)
+        data = self._read_rsp(Response._STRUCT.size, timeout=timeout)
         assert len(data) == Response._STRUCT.size
         rsp = cls.unpack_from(data)
         assert rsp.tag == tag
@@ -564,7 +575,7 @@ class TCSC(TinCan):
         return int(amplitude)
 
     def _read_samples(self):
-        data    = self.usb_dev.read(self.SCOPE_EP, 768 * 1024, timeout=3000)
+        data    = self._read_scope(768 * 1024, timeout=3000)
         hdr     = SampleHeader.unpack(data[:SampleHeader._STRUCT.size])
         assert len(data) == SampleHeader._STRUCT.size + hdr.nsamples * 2
         samples = np.frombuffer(data, dtype='<i2',
@@ -607,7 +618,7 @@ class TCSC(TinCan):
                              amplitude=amplitude).pack())
 
     def sample_auto_chirp_sync(self):
-        data = self.usb_dev.read(self.SCOPE_EP, 128*1024, timeout=3000)
+        data = self.usb_dev._read_scope(128*1024, timeout=3000)
         assert len(data) == 16432
 
         hdr  = AutoChirpHeader.unpack(data[:AutoChirpHeader._STRUCT.size])
@@ -649,7 +660,7 @@ class TCSC(TinCan):
         the _sweep_params array that was built in sweep_async().
         '''
         size = SweepResult._STRUCT.size * len(self._sweep_params)
-        data = self.usb_dev.read(self.RSP_EP, size)
+        data = self._read_rsp(size)
         assert len(data) == size
 
         theta_deg = theta_deg % 360
@@ -742,5 +753,5 @@ class TCSC(TinCan):
 
         N    = 2*N + 1
         size = 8*N
-        data = self.usb_dev.read(self.RSP_EP, size, timeout=1000)
+        data = self._read_rsp(size, timeout=1000)
         return struct.unpack('<%ud' % N, data)
