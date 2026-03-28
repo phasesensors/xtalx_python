@@ -22,6 +22,9 @@ def make_sensor(args):
         if args.serial_number is None or x.serial_num == args.serial_number:
             return x
 
+    if args.xhtis_intf:
+        return xtalx.p_sensor.XHTIS(args.xhtis_intf)
+
     dev = xtalx.p_sensor.find_one_xti(serial_number=args.serial_number)
     if dev is not None:
         return xtalx.p_sensor.make(dev)
@@ -70,6 +73,7 @@ def main(args):
 def _main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--intf', '-i')
+    parser.add_argument('--xhtis-intf')
     parser.add_argument('--baud-rate', type=int, default=115200)
     parser.add_argument('--modbus-addr', '-m', default='0x80')
     parser.add_argument('--serial-number', '-s')

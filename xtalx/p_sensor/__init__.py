@@ -2,6 +2,7 @@
 import xtalx.tools.usb
 
 from .xhti import XHTI
+from .xhtis import XHTIS
 from .xhtism import XHTISM
 from .xhtiss import XHTISS
 from .xmhti import XMHTI
@@ -62,6 +63,7 @@ __all__ = ['find_xti',
            'make',
            'XTI',
            'XHTI',
+           'XHTIS',
            'XHTISM',
            'XHTISS',
            'XMHTI',
