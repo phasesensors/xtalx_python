@@ -2,7 +2,6 @@
 # All rights reserved.
 import btype
 
-from .xti import Measurement
 from .exception import XtalXException
 
 
@@ -85,12 +84,3 @@ class Comms:
     def read_full(self):
         data = self.exec_cmd(0x2D, FullResponse._STRUCT.size)
         return FullResponse.unpack(data)
-
-    def read_measurement(self):
-        rsp = self.read_full()
-
-        m = Measurement(self.xhtiss, None, rsp.pressure_psi, rsp.temperature_c,
-                        rsp.pressure_hz, rsp.temperature_hz, None, None, None,
-                        None, None, None, None, None, None)
-        m._age_ms = rsp.age_ms
-        return m

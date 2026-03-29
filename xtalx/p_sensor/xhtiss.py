@@ -7,6 +7,7 @@ import xtalx.spi_adapter
 
 from . import xhtiss_091
 from . import xhtiss_092
+from .xti import Measurement
 from .cal_page import CalPage
 
 
@@ -142,6 +143,20 @@ class XHTISS:
         (cp,) = self.read_calibration_pages()
         return cp if cp.is_valid() else None
 
+    def read_measurement(self):
+        '''
+        Reads a single measurement from the sensor.
+        '''
+        rsp = self.comms.read_full()
+
+        m = Measurement(self, None, rsp.pressure_psi, rsp.temperature_c,
+                        rsp.pressure_hz, rsp.temperature_hz, None, None, None,
+                        None, None, None, None, None, None)
+        m._age_ms = rsp.age_ms
+        if self.fw_version >= 0x092:
+            m._status = rsp.status
+        return m
+
     def yield_measurements(self, poll_interval_sec=None, **_kwargs):
         if poll_interval_sec is None:
             poll_interval_sec = self.poll_interval_sec
@@ -149,7 +164,7 @@ class XHTISS:
         self._halt_yield = False
         while not self._halt_yield:
             try:
-                m = self.comms.read_measurement()
+                m = self.read_measurement()
             except xhtiss_092.OpcodeMismatchError as e:
                 logging.info('%s: Opcode mismatch: tx_cmd "%s" data "%s"',
                              self, e.tx_cmd.hex(), e.data.hex())
