@@ -22,7 +22,7 @@ class XHTISS:
         self.last_time_ns      = 0
         self.poll_interval_sec = 0
 
-        self.comms = self._probe_comms()
+        self.comms = XHTISS._probe_comms(bus)
 
         (self.serial_num,
          self.fw_version_str,
@@ -41,7 +41,8 @@ class XHTISS:
     def __str__(self):
         return 'XHTISS(%s)' % self.serial_num
 
-    def _probe_comms(self):
+    @staticmethod
+    def _probe_comms(bus):
         # Probe the target firmware.
         tx_cmd = b'\x34\x00\x00'
         tx_cmd = tx_cmd + bytes([xhtiss_092.crc8(tx_cmd)])
@@ -49,7 +50,7 @@ class XHTISS:
         while True:
             # Send a NOP command.  This will be interpreted as an unsupported
             # command by 0.9.1 firmware.
-            rsp = self.bus.transact(tx_cmd)
+            rsp = bus.transact(tx_cmd)
             if rsp == b'????':
                 retries += 1
                 if retries == 10:
@@ -58,7 +59,7 @@ class XHTISS:
                     raise xhtiss_091.DeadFirmwareException()
                 continue
             if rsp == b'\xAA\xBB??':
-                return xhtiss_091.Comms(self)
+                return xhtiss_091.Comms(bus)
 
             # The response didn't look like 0.9.1 firmware, analyze it.
             if rsp[:3] != b'\xAA\x00\x34':
@@ -75,14 +76,14 @@ class XHTISS:
 
             # The response was good for an 0.9.2 or higher firmware; we can
             # double-check the sticky status code.
-            rsp = self.bus.transact(b'\x00\x00')
+            rsp = bus.transact(b'\x00\x00')
             if rsp[:2] != b'\xAA\x00':
                 logging.info('Response prefix mismatch probing sticky status, '
                              'expected: %s rsp: %s', b'\xAA\x00', rsp)
                 time.sleep(1)
                 continue
 
-            return xhtiss_092.Comms(self)
+            return xhtiss_092.Comms(bus)
 
     def _read_ids(self):
         data = self.comms._get_nvstore(0xCA01, 24)
