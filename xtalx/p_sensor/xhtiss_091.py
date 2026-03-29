@@ -2,7 +2,6 @@
 # All rights reserved.
 import btype
 
-from .xti import Measurement
 from .exception import XtalXException
 
 
@@ -48,24 +47,24 @@ class Comms:
     '''
     Communication protocol for sensor firmware 0.9.1 or below.
     '''
-    def __init__(self, xhtiss):
-        self.xhtiss = xhtiss
+    def __init__(self, bus):
+        self.bus = bus
 
     def _set_nvstore(self, addr, data):
         assert len(data) == 4
         cmd = bytes([0x1E, 0x00, (addr & 0xFF), ((addr >> 8) & 0xFF),
                      data[0], data[1], data[2], data[3]])
-        self.xhtiss.bus.transact(cmd)
+        self.bus.transact(cmd)
 
     def _get_nvstore(self, addr, size):
         cmd = bytes([0x2A, 0x00, (addr & 0xFF), ((addr >> 8) & 0xFF), 0x00])
         cmd += bytes(size)
-        data = self.xhtiss.bus.transact(cmd)
+        data = self.bus.transact(cmd)
         return data[5:]
 
     def exec_cmd(self, cmd, rsp_len):
         cmd_bytes = bytes([cmd, 0x00]) + b'\x00'*rsp_len
-        rsp = self.xhtiss.bus.transact(cmd_bytes)
+        rsp = self.bus.transact(cmd_bytes)
         if rsp == b'?'*len(rsp):
             raise DeadFirmwareException()
         return rsp[2:]
@@ -85,12 +84,3 @@ class Comms:
     def read_full(self):
         data = self.exec_cmd(0x2D, FullResponse._STRUCT.size)
         return FullResponse.unpack(data)
-
-    def read_measurement(self):
-        rsp = self.read_full()
-
-        m = Measurement(self.xhtiss, None, rsp.pressure_psi, rsp.temperature_c,
-                        rsp.pressure_hz, rsp.temperature_hz, None, None, None,
-                        None, None, None, None, None, None)
-        m._age_ms = rsp.age_ms
-        return m

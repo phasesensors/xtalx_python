@@ -4,7 +4,6 @@ from enum import IntEnum
 
 import btype
 
-from .xti import Measurement
 from .exception import XtalXException
 
 
@@ -153,8 +152,8 @@ class Comms:
     '''
     Communication protocol for sensor firmare 0.9.2 or later.
     '''
-    def __init__(self, xhtiss):
-        self.xhtiss = xhtiss
+    def __init__(self, bus):
+        self.bus = bus
 
         self._synchronize()
 
@@ -172,7 +171,7 @@ class Comms:
     def _csum_transact(self, cmd, corrupt_csum=0):
         tx_csum = crc8(cmd) + corrupt_csum
         tx_cmd  = cmd + bytes([tx_csum])
-        data    = self.xhtiss.bus.transact(tx_cmd)
+        data    = self.bus.transact(tx_cmd)
         if data[0] != 0xAA:
             raise ProtocolError(tx_cmd, data)
         if data[2] != cmd[0]:
@@ -187,7 +186,7 @@ class Comms:
 
     def _read_err(self):
         tx_cmd = b'\x00\x00'
-        data = self.xhtiss.bus.transact(tx_cmd)
+        data = self.bus.transact(tx_cmd)
         if data[0] != 0xAA:
             raise ProtocolError(tx_cmd, data)
         return data[1]
@@ -196,7 +195,7 @@ class Comms:
         tx_cmd = b'\x34\x00\x00'
         tx_cmd = tx_cmd + bytes([crc8(tx_cmd)])
         while True:
-            rsp = self.xhtiss.bus.transact(tx_cmd)
+            rsp = self.bus.transact(tx_cmd)
             if rsp[0] != 0xAA:
                 continue
             if rsp[1] == 0xBB:
@@ -208,7 +207,7 @@ class Comms:
             if rsp[3] != crc8(rsp[0:3]):
                 continue
 
-            rsp = self.xhtiss.bus.transact(b'\x00\x00')
+            rsp = self.bus.transact(b'\x00\x00')
             if rsp[0] != 0xAA:
                 continue
             if rsp[1] != 0x00:
@@ -251,13 +250,3 @@ class Comms:
     def read_full(self):
         data = self.exec_cmd(0x2D, FullResponse._STRUCT.size)
         return FullResponse.unpack(data)
-
-    def read_measurement(self):
-        rsp = self.read_full()
-
-        m = Measurement(self.xhtiss, None, rsp.pressure_psi, rsp.temperature_c,
-                        rsp.pressure_hz, rsp.temperature_hz, None, None, None,
-                        None, None, None, None, None, None)
-        m._age_ms = rsp.age_ms
-        m._status = rsp.status
-        return m
