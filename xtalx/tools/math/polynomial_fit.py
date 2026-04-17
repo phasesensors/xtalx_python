@@ -87,7 +87,8 @@ class PolynomialFit1D:
         '''
         Given the x_domain and a list of coefficients of the form:
 
-            [x0, x1, x2, ..., xN]
+            x_domain = [low, high]
+            coefs    = [x0, x1, x2, ..., xN]
 
         generate the fit polynomial for evaluation purposes.
         '''
