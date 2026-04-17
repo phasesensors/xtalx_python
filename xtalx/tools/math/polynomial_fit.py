@@ -78,9 +78,10 @@ def make_poly_bstruct(Nvars, Ncoefs):
 
 
 class PolynomialFit1D:
-    def __init__(self, order, pf):
+    def __init__(self, order, pf, RR=None):
         self.order = order
         self.pf    = pf
+        self.RR    = RR
 
     @staticmethod
     def from_domain_coefs(x_domain, coefs):
