@@ -54,6 +54,15 @@ class XYSeries:
         self.X = np.append(self.X, x)
         self.Y = np.append(self.Y, y)
 
+    def subseries(self, x0, x1):
+        assert x0 <= x1
+
+        x0, x1 = coords = np.clip([x0, x1], self.X[0], self.X[-1])
+        iL, iH = np.searchsorted(self.X, coords)
+        X      = self.X[iL:iH]
+        Y      = self.Y[iL:iH]
+        return XYSeries(X, Y)
+
 
 if __name__ == '__main__':
     s = XYSeries([1, 2, 3], [4, 5, 6])
