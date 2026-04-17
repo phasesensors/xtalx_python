@@ -84,6 +84,22 @@ class PolynomialFit1D:
         self.RR    = RR
 
     @staticmethod
+    def from_samples(X, Y, order=1):
+        '''
+        Given a set of (x, y) samples, generate the best least-squares fit to
+        the data using the given order.
+        '''
+        assert len(X) == len(Y)
+        X      = numpy.array(X)
+        Y      = numpy.array(Y)
+        pf     = numpy.polynomial.polynomial.Polynomial.fit(X, Y, order)
+        y_mean = numpy.mean(Y)
+        SStot  = numpy.sum((Y - y_mean)**2)
+        SSreg  = numpy.sum((pf(X) - y_mean)**2)
+        RR     = SSreg / SStot if SStot != 0 else None
+        return PolynomialFit1D(order, pf, RR=RR)
+
+    @staticmethod
     def from_domain_coefs(x_domain, coefs):
         '''
         Given the x_domain and a list of coefficients of the form:
