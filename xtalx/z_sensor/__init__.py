@@ -3,6 +3,7 @@
 import xtalx.tools.usb
 
 from .tcsc_u5 import TCSC_U5
+from .tcsc_u5_2xx import TCSC_U5_2xx
 from .peak_tracker import PeakTracker
 from .predicate_queue import PredicateQueue
 from .sweeper import Sweeper
@@ -10,16 +11,19 @@ from .sweeper import Sweeper
 
 def find(**kwargs):
     return xtalx.tools.usb.find(idVendor=0x0483, idProduct=0xA34E,
-                                product='XtalX TCSC', find_all=True, **kwargs)
+                                bDeviceClass=0xFF, bDeviceSubClass=0x01,
+                                find_all=True, **kwargs)
 
 
 def find_one(**kwargs):
     return xtalx.tools.usb.find_one(idVendor=0x0483, idProduct=0xA34E,
-                                    product='XtalX TCSC', find_all=True,
-                                    **kwargs)
+                                    bDeviceClass=0xFF, bDeviceSubClass=0x01,
+                                    find_all=True, **kwargs)
 
 
 def make(usb_dev, **kwargs):
+    if udb_dev.bcdDevice >= 0x200:
+        return TCSC_U5_2xx(usb_dev, **kwargs)
     if usb_dev.product == 'XtalX TCSC':
         return TCSC_U5(usb_dev, **kwargs)
 
