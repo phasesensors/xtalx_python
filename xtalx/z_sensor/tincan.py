@@ -73,17 +73,13 @@ class TinCan:
             return p
 
         p.update({
-            'peak_hz'   : fw_fit.peak_hz,
-            'peak_fwhm' : fw_fit.peak_fwhm,
-            'RR'        : fw_fit.RR,
+            'peak_hz'          : fw_fit.peak_hz,
+            'peak_fwhm'        : fw_fit.peak_fwhm,
+            'RR'               : fw_fit.RR,
+            'temp_c'           : fw_fit.temp_c,
+            'density_g_per_ml' : fw_fit.density_g_per_ml,
+            'viscosity_cp'     : fw_fit.viscosity_cp,
         })
-
-        if fw_fit.temp_c is not None:
-            p['temp_c'] = fw_fit.temp_c
-        if fw_fit.density_g_per_ml is not None:
-            p['density_g_per_ml'] = fw_fit.density_g_per_ml
-        if fw_fit.viscosity_cp is not None:
-            p['viscosity_cp'] = fw_fit.viscosity_cp
 
         return p
 
