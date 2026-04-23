@@ -1,6 +1,6 @@
 # Copyright (c) 2023 by Phase Advanced Sensor Systems, Inc.
 # All rights reserved.
-from .tcsc import TCSC
+from .tcsc_1xx import TCSC
 
 
 class TCSC_U5(TCSC):
