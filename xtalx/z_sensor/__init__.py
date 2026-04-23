@@ -2,7 +2,7 @@
 # All rights reserved.
 import xtalx.tools.usb
 
-from .tcsc_u5 import TCSC_U5
+from .tcsc_u5 import TCSC_U5_1xx
 from .peak_tracker import PeakTracker
 from .predicate_queue import PredicateQueue
 from .sweeper import Sweeper
@@ -22,7 +22,7 @@ def find_one(**kwargs):
 
 def make(usb_dev, **kwargs):
     if usb_dev.product == 'XtalX TCSC':
-        return TCSC_U5(usb_dev, **kwargs)
+        return TCSC_U5_1xx(usb_dev, **kwargs)
 
     raise Exception('Unrecognized product string: %s' % usb_dev.product)
 
