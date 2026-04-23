@@ -10,13 +10,14 @@ from .sweeper import Sweeper
 
 def find(**kwargs):
     return xtalx.tools.usb.find(idVendor=0x0483, idProduct=0xA34E,
-                                product='XtalX TCSC', find_all=True, **kwargs)
+                                bDeviceClass=0xFF, bDeviceSubClass=0x01,
+                                find_all=True, **kwargs)
 
 
 def find_one(**kwargs):
     return xtalx.tools.usb.find_one(idVendor=0x0483, idProduct=0xA34E,
-                                    product='XtalX TCSC', find_all=True,
-                                    **kwargs)
+                                    bDeviceClass=0xFF, bDeviceSubClass=0x01,
+                                    find_all=True, **kwargs)
 
 
 def make(usb_dev, **kwargs):
