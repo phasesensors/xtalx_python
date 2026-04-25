@@ -1,6 +1,7 @@
 # Copyright (c) 2021-2023 by Phase Advanced Sensor Systems, Inc.
 # All rights reserved.
 import time
+import cmath
 
 
 class TinCan:
@@ -91,13 +92,24 @@ class TinCan:
         value for a given sweep.  Since each frequency in a sweep is measured
         for much longer than 1 ns, there is no danger of collision.
         '''
-        return [
-            {
-                'time_ns'   : t0_ns + i,
-                'f_hz'      : p.f,
-                'z_real'    : p.Z.real,
-                'z_imag'    : p.Z.imag,
-                'RR'        : p.RR[1],
-            }
-            for i, p in enumerate(points)
-        ]
+        results = []
+        for i, p in enumerate(points):
+            probea = complex(p._sweep_result.real[0], p._sweep_result.imag[0])
+            sigin  = complex(p._sweep_result.real[1], p._sweep_result.imag[1])
+            results.append(
+                {
+                    'time_ns'          : t0_ns + i,
+                    'f_hz'             : p.f,
+                    'z_real'           : p.Z.real,
+                    'z_imag'           : p.Z.imag,
+                    'RR'               : p.RR[1],
+                    'probea_amplitude' : abs(probea),
+                    'probea_phase'     : cmath.phase(probea),
+                    'probea_offset'    : p._sweep_result.offset[0],
+                    'probea_RR'        : p.RR[0],
+                    'sigin_amplitude'  : abs(sigin),
+                    'sigin_phase'      : cmath.phase(sigin),
+                    'sigin_offset'     : p._sweep_result.offset[1],
+                }
+            )
+        return results
