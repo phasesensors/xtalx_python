@@ -2,10 +2,12 @@
 # All rights reserved.
 import xtalx.tools.usb
 
-from .tcsc_u5 import TCSC_U5_1xx, TCSC_U5_2xx
+from .tcsc_u5 import TCSC_U5
 from .peak_tracker import PeakTracker
 from .predicate_queue import PredicateQueue
 from .sweeper import Sweeper
+from . import tcsc_1xx
+from . import tcsc_2xx
 
 
 def find(**kwargs):
@@ -21,12 +23,15 @@ def find_one(**kwargs):
 
 
 def make(usb_dev, **kwargs):
+    comms = None
     if usb_dev.bcdDevice >= 0x200:
-        return TCSC_U5_2xx(usb_dev, **kwargs)
-    if usb_dev.product == 'XtalX TCSC':
-        return TCSC_U5_1xx(usb_dev, **kwargs)
+        comms = tcsc_2xx.Comms(usb_dev)
+    elif usb_dev.product == 'XtalX TCSC':
+        comms = tcsc_1xx.Comms(usb_dev)
+    else:
+        raise Exception('Unrecognized product string: %s' % usb_dev.product)
 
-    raise Exception('Unrecognized product string: %s' % usb_dev.product)
+    return TCSC_U5(comms, **kwargs)
 
 
 __all__ = ['find',

@@ -69,8 +69,7 @@ def main(rv):
     for dev in devs:
         tc2 = xtalx.z_sensor.make(dev)
         print('*************************************')
-        if isinstance(tc2, (xtalx.z_sensor.TCSC_U5_1xx,
-                            xtalx.z_sensor.TCSC_U5_2xx)):
+        if isinstance(tc2, xtalx.z_sensor.TCSC_U5):
             print_info_tcsc_u5(tc2)
             continue
 
