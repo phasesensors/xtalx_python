@@ -267,8 +267,6 @@ class PeakTracker:
         if res.nchirps < 20:
             return
 
-        self.tc._synchronize()
-
         if (lf and lf.RR >= CHIRP_MIN_RR and
                 self.chirp_space[0] <= lf.x0 <= self.chirp_space[-1]):
             strength = lf.A / (math.pi * lf.W)
