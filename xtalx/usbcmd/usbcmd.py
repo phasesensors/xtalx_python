@@ -36,7 +36,7 @@ class Command(btype.Struct):
     _EXPECTED_SIZE  = 32
 
 
-class Response(btype.Struct):
+class ResponseShort(btype.Struct):
     opcode         = btype.uint16_t()
     tag            = btype.uint16_t()
     data_len       = btype.uint16_t()
@@ -45,12 +45,32 @@ class Response(btype.Struct):
     _EXPECTED_SIZE = 32
 
 
+class ResponseLong(btype.Struct):
+    opcode         = btype.uint16_t()
+    tag            = btype.uint16_t()
+    status         = btype.uint16_t()
+    rsrv1          = btype.uint16_t()
+    data_len       = btype.uint32_t()
+    rsrv2          = btype.uint32_t()
+    params         = btype.Array(btype.uint32_t(), 6)
+    _EXPECTED_SIZE = 40
+
+
 class CommandException(Exception):
     def __init__(self, rsp, rx_data):
         super().__init__(
             'Command exception: %s (%s)' % (Status.rsp_to_status_str(rsp), rsp))
         self.rsp = rsp
         self.rx_data = rx_data
+
+
+def unpack_rsp(data):
+    if len(data) == ResponseShort._STRUCT.size:
+        return ResponseShort.unpack(data)
+    if len(data) == ResponseLong._STRUCT.size:
+        return ResponseLong.unpack(data)
+
+    raise Exception('Unexpected response: %s' % data)
 
 
 class Device:
@@ -108,10 +128,9 @@ class Device:
             l = self.usb_dev.write(self.cmd_ep, data, timeout=timeout_ms)
             assert l == len(data)
 
-        data = self.usb_dev.read(self.rsp_ep, Response._STRUCT.size,
+        data = self.usb_dev.read(self.rsp_ep, ResponseLong._STRUCT.size,
                                  timeout=timeout_ms)
-        assert len(data) == Response._STRUCT.size
-        rsp = Response.unpack(data)
+        rsp = unpack_rsp(data)
         assert rsp.opcode == opcode
         assert rsp.tag    == tag
 
@@ -159,9 +178,9 @@ class Device:
                 self.usb_dev.write(self.cmd_ep, b'\x00', timeout=100)
             else:
                 self.usb_dev.write(self.cmd_ep, b'', timeout=100)
-            data = self.usb_dev.read(self.rsp_ep, 32, timeout=100)
-            assert len(data) == 32
-            rsp = Response.unpack(data)
+            data = self.usb_dev.read(self.rsp_ep, ResponseLong._STRUCT.size,
+                                     timeout=100)
+            rsp = unpack_rsp(data)
             if platform.system() == 'Windows':
                 assert rsp.status in (Status.BAD_CMD_LENGTH,
                                       Status.BAD_DATA_LENGTH)
