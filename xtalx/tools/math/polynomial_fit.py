@@ -130,9 +130,9 @@ class PolynomialFit1D:
 
     @staticmethod
     def _polystr(coef):
-        s      = '%.5f' % coef[0]
+        s      = '%.15f' % coef[0]
         for i, c in enumerate(coef[1:]):
-            s += ' + %.5f*x%s' % (c, superscript(i + 1))
+            s += ' + %.15f*x%s' % (c, superscript(i + 1))
         return s
 
     def __repr__(self):
