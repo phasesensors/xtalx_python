@@ -6,6 +6,7 @@ MODULES := \
 	setup.cfg \
 	setup.py \
 	xtalx/p_sensor/*.py \
+	xtalx/t_sensor/*.py \
 	xtalx/z_sensor/*.py \
 	xtalx/modbus_adapter/*.py \
 	xtalx/spi_adapter/*.py \
