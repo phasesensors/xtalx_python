@@ -63,6 +63,11 @@ class PolyWindow(btype.Struct):
     high    = btype.uint64_t(0xFFFFFFFFFFFFFFFF)
 
 
+class PolyWindowDouble(btype.Struct):
+    low     = btype.float64_t()
+    high    = btype.float64_t()
+
+
 def make_poly_bstruct(Nvars, Ncoefs):
     if (Nvars, Ncoefs) in TYPE_TABLE:
         return TYPE_TABLE[(Nvars, Ncoefs)]
@@ -73,6 +78,20 @@ def make_poly_bstruct(Nvars, Ncoefs):
         windows = btype.Array(PolyWindow(), Nvars)
         coefs   = btype.Array(btype.uint64_t(0xFFFFFFFFFFFFFFFF), Ncoefs)
     TYPE_TABLE[(Nvars, Ncoefs)] = _Poly
+
+    return _Poly
+
+
+def make_poly_bstruct_double(Nvars, Ncoefs):
+    if (Nvars, Ncoefs) in TYPE_TABLE_DOUBLE:
+        return TYPE_TABLE_DOUBLE[(Nvars, Ncoefs)]
+
+    class _Poly(btype.Struct):
+        nvars   = btype.uint32_t()
+        order   = btype.uint32_t()
+        windows = btype.Array(PolyWindowDouble(), Nvars)
+        coefs   = btype.Array(btype.float64_t(), Ncoefs)
+    TYPE_TABLE_DOUBLE[(Nvars, Ncoefs)] = _Poly
 
     return _Poly
 
@@ -114,6 +133,21 @@ class PolynomialFit1D:
         return PolynomialFit1D(order, pf)
 
     @staticmethod
+    def from_k1_k2_coefs(k1, k2, coefs):
+        '''
+        Given k1 and k2 and a list of coefficients of the form:
+
+            k1    = 2 / (high - low)
+            k2    = low * k1 + 1
+            coefs = [x0, x1, x2, ..., xN]
+
+        generate the fit polynomial for evaluation purposes.
+        '''
+        low   = (k2 - 1) / k1
+        high  = low + 2 / k1
+        return PolynomialFit1D.from_domain_coefs([low, high], coefs)
+
+    @staticmethod
     def from_poly_bstruct(p):
         '''
         Generate the fit polynomial from a make_poly_bstruct() btype class.
@@ -130,9 +164,9 @@ class PolynomialFit1D:
 
     @staticmethod
     def _polystr(coef):
-        s      = '%.5f' % coef[0]
+        s      = '%.15f' % coef[0]
         for i, c in enumerate(coef[1:]):
-            s += ' + %.5f*x%s' % (c, superscript(i + 1))
+            s += ' + %.15f*x%s' % (c, superscript(i + 1))
         return s
 
     def __repr__(self):
@@ -140,6 +174,18 @@ class PolynomialFit1D:
         s += '\n : x(%s, %s) -> [-1. 1.]' % (float(self.pf.domain[0]),
                                              float(self.pf.domain[1]))
         return s
+
+    def to_poly_class_double_efficient(self, Ncoefs):
+        cls               = make_poly_bstruct_double(1, Ncoefs)
+        p                 = cls()
+        k                 = 1 / (self.pf.domain[1] - self.pf.domain[0])
+        p.nvars           = 1
+        p.order           = self.order
+        p.windows[0].low  = 2 * k
+        p.windows[0].high = 2 * k * self.pf.domain[0] + 1
+        for i, c in enumerate(self.pf.coef):
+            p.coefs[i] = c
+        return p
 
 
 class PolynomialFit2D:

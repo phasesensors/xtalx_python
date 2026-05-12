@@ -1,11 +1,12 @@
 # Copyright (c) 2021-2024 by Phase Advanced Sensor Systems Corp.
 MODULE      := xtalx
-MODULE_VERS := 1.4.8
+MODULE_VERS := 1.4.9
 MODULE_DEPS :=
 MODULES := \
 	setup.cfg \
 	setup.py \
 	xtalx/p_sensor/*.py \
+	xtalx/t_sensor/*.py \
 	xtalx/z_sensor/*.py \
 	xtalx/modbus_adapter/*.py \
 	xtalx/spi_adapter/*.py \
@@ -51,11 +52,11 @@ lint:
 
 .PHONY: install
 install: $(WHEEL_PATH) | uninstall
-	sudo $(PYTHON) -m pip install $(WHEEL_PATH) --break-system-packages
+	$(PYTHON) -m pip install $(WHEEL_PATH)
 
 .PHONY: uninstall
 uninstall:
-	sudo $(PYTHON) -m pip uninstall -y $(MODULE) --break-system-packages
+	$(PYTHON) -m pip uninstall -y $(MODULE)
 
 .PHONY: packages
 packages: $(WHEEL_PATH)
