@@ -2,7 +2,7 @@
 # All rights reserved.
 import usb.core
 import usb.backend.libusb1
-import libusb_package
+import libusb_package_tng
 
 
 LIBUSB_BACKEND = None
@@ -12,7 +12,7 @@ def get_backend():
     global LIBUSB_BACKEND
     if not LIBUSB_BACKEND:
         LIBUSB_BACKEND = usb.backend.libusb1.get_backend(
-                find_library=libusb_package.find_library)
+                find_library=libusb_package_tng.find_library)
     return LIBUSB_BACKEND
 
 
