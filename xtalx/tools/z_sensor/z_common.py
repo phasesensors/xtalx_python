@@ -116,20 +116,22 @@ class ZDelegate(xtalx.z_sensor.peak_tracker.Delegate):
 
 
 def parse_config(rv):
-    if not rv.config:
-        return None, None
-
     pq = None
-    with open(rv.config, encoding='utf8') as f:
-        c = Config(f.readlines(), [])
-        if rv.use_simple_tsdb:
-            pq = simple_tsdb.PushQueue('127.0.0.1', 4000)
-        elif c.has_keys(['influx_host', 'influx_user', 'influx_password',
-                         'influx_database']):
-            pq = InfluxDBPushQueue(c.influx_host, 8086, c.influx_user,
-                                   c.influx_password,
-                                   database=c.influx_database, ssl=True,
-                                   verify_ssl=True, timeout=100)
+    if rv.use_simple_tsdb:
+        pq = simple_tsdb.PushQueue('127.0.0.1', 4000)
+
+    c = None
+    if rv.config:
+        with open(rv.config, encoding='utf8') as f:
+            c = Config(f.readlines(), [])
+            if pq is None and c.has_keys(['influx_host',
+                                          'influx_user',
+                                          'influx_password',
+                                          'influx_database']):
+                pq = InfluxDBPushQueue(c.influx_host, 8086, c.influx_user,
+                                       c.influx_password,
+                                       database=c.influx_database, ssl=True,
+                                       verify_ssl=True, timeout=100)
 
     return c, pq
 
