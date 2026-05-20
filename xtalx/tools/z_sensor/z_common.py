@@ -27,7 +27,7 @@ class ZLogger:
     Helper class that takes care of logging measurements to the console as well
     as writing fit and dump files, if specified.
     '''
-    def __init__(self, fit_file, dump_file):
+    def __init__(self, fit_file, dump_file, show_t_telemetry):
         if dump_file:
             dump_file = open(  # pylint: disable=R1732
                     dump_file, 'a', encoding='utf8')
@@ -45,8 +45,9 @@ class ZLogger:
         else:
             fit_file = None
 
-        self.fit_file  = fit_file
-        self.dump_file = dump_file
+        self.fit_file         = fit_file
+        self.dump_file        = dump_file
+        self.show_t_telemetry = show_t_telemetry
 
     def log_chirp(self, tc, nchirps, lf):
         if lf is not None:
@@ -96,6 +97,13 @@ class ZLogger:
             self.fit_file.flush()
 
         return T, D, V
+
+    def log_telemetry_temp(self, tc, telemetry):
+        if not self.show_t_telemetry:
+            return
+
+        tag = 'T'
+        tc.log(tag, 'temp_hz %s T %s' % (telemetry.temp_freq, telemetry.temp_c))
 
 
 class ZDelegate(xtalx.z_sensor.peak_tracker.Delegate):
@@ -154,7 +162,7 @@ def parse_args(tc, rv):
 
     return (ZArgs(amplitude, rv.nfreqs, rv.search_time_secs, rv.sweep_time_secs,
                   rv.settle_ms),
-            ZLogger(rv.fit_file, rv.dump_file))
+            ZLogger(rv.fit_file, rv.dump_file, rv.show_t_telemetry))
 
 
 def add_arguments(parser):
@@ -170,3 +178,4 @@ def add_arguments(parser):
     parser.add_argument('--config', '-c')
     parser.add_argument('--use-simple-tsdb', action='store_true')
     parser.add_argument('--track-impedance', action='store_true')
+    parser.add_argument('--show-t-telemetry', action='store_true')
