@@ -117,6 +117,8 @@ class Comms(xtalx.usbcmd.Device):
 
     def _get_einfo(self):
         _, data = self._exec_command(Opcode.GET_EINFO)
+        if not data:
+            return None
         return GetEInfoResponseStruct.unpack(data)
 
     def _send_scope_cmd(self, dds_skip, amplitude):
