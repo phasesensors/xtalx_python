@@ -154,7 +154,8 @@ class StartSweepPayload(btype.Struct):
 
 class Comms:
     def __init__(self, usb_dev):
-        self.usb_dev = usb_dev
+        self.usb_dev      = usb_dev
+        self.last_time_ns = 0
 
         try:
             self.serial_num = usb_dev.serial_number
@@ -399,3 +400,11 @@ class Comms:
         params = GenHiresFreqsPayload(f0=f0, width=width, N=N).pack()
         self._send_command(Opcode.GEN_HIRES_FREQS, params, b'', 1000)
         return self._read_rsp(8*(2*N + 1), timeout=1000)
+
+    def time_ns_increasing(self):
+        '''
+        Returns a time value in nanoseconds that is guaranteed to increase
+        after every single call.  This function is not thread-safe.
+        '''
+        self.last_time_ns = t = max(time.time_ns(), self.last_time_ns + 1)
+        return t
