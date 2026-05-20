@@ -191,3 +191,47 @@ class ParsedSweepResult:
                 Z.real * math.sin(theta_rad) + Z.imag * math.cos(theta_rad))
         self.Y = 1 / self.Z
         self.z = self.Y if yield_Y else self.Z
+
+
+class TelemetryType(IntEnum):
+    TEMPERATURE     = 1
+
+
+class TelemetryNotSupportedException(Exception):
+    pass
+
+
+class TelemetryPacketTemperature(btype.Struct):
+    telemetry_type      = btype.uint8_t()
+    rsrv1               = btype.Array(btype.uint8_t(), 3)
+    seq_num             = btype.uint32_t()
+    flags               = btype.uint32_t()
+    rsrv2               = btype.uint32_t()
+    temp_hz             = btype.float64_t()
+    temp_c              = btype.float64_t()
+    _EXPECT_SIZE        = 32
+
+
+class TelemetryTemperature:
+    def __init__(self, sensor, seq_num, flags, temp_freq, temp_c, time_ns=None):
+        self.sensor    = sensor
+        self.seq_num   = seq_num
+        self.flags     = flags
+        self.temp_freq = temp_freq
+        self.temp_c    = temp_c
+        self.time_ns   = time_ns or sensor.comms.time_ns_increasing()
+
+    @staticmethod
+    def _from_packet(sensor, packet):
+        tp = TelemetryPacketTemperature.unpack(packet)
+        return TelemetryTemperature(sensor, tp.seq_num, tp.flags, tp.temp_hz,
+                                    tp.temp_c)
+
+    def to_stsdb_point(self, time_ns=None):
+        temp_freq = None if math.isinf(self.temp_freq) else self.temp_freq
+        temp_c    = None if math.isinf(self.temp_c) else self.temp_c
+        return {
+            'time_ns'      : self.time_ns if time_ns is None else time_ns,
+            'temp_freq_hz' : temp_freq,
+            'temp_c'       : temp_c,
+        }

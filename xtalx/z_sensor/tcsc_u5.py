@@ -9,7 +9,8 @@ import numpy as np
 from .tincan import TinCan
 from .scope_data import ScopeData
 from .tcsc_types import (SampleHeader, AutoChirpHeader, AutoChirpResult,
-                         SweepEntry, SweepResult, ParsedSweepResult)
+                         SweepEntry, SweepResult, ParsedSweepResult,
+                         TelemetryType, TelemetryTemperature)
 from . import crystal_info
 
 
@@ -274,3 +275,26 @@ class TCSC_U5(TinCan):
         size = 8*N
         assert len(data) == size
         return struct.unpack('<%ud' % N, data)
+
+    def is_telemetry_supported(self):
+        '''
+        Returns True if the comms protocol supports the telemetry endpoint,
+        False otherwise.
+        '''
+        return self.comms._is_telemetry_supported()
+
+    def read_telemetry(self):
+        '''
+        Reads any pending telemetry packet from the sensor.  Returns None if an
+        unrecognized telemetry type was read.  Throws an exception is used on a
+        sensor that doesn't support telemetry.  Blocks until telemetry is
+        available, otherwise.
+        '''
+        data = self.comms._read_telemetry()
+        if not data:
+            return None
+
+        if data[0] == TelemetryType.TEMPERATURE:
+            return TelemetryTemperature._from_packet(self, data)
+
+        return None

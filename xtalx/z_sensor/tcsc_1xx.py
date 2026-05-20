@@ -8,7 +8,7 @@ import usb.core
 import btype
 
 from .tcsc_types import (DriveType, ResetReason, Opcode, GetInfoResponse,
-                         SweepFit)
+                         SweepFit, TelemetryNotSupportedException)
 
 
 class StartCalPayload(btype.Struct):
@@ -184,6 +184,9 @@ class Comms:
 
         self.cmd_buf_len = self._get_info().cmd_buf_len
 
+    def _is_telemetry_supported(self):
+        return False
+
     @staticmethod
     def _set_configuration(usb_dev, bConfigurationValue, force=False):
         cfg = None
@@ -206,6 +209,9 @@ class Comms:
 
     def _read_scope(self, size, **kwargs):
         return self.usb_dev.read(self.SCOPE_EP, size, **kwargs)
+
+    def _read_telemetry(self, _size=128, **_kwargs):
+        raise TelemetryNotSupportedException()
 
     def _send_abort(self):
         self._write_cmd(b'')

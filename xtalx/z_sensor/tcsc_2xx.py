@@ -67,9 +67,10 @@ class EvalFreqsResponseStruct(btype.Struct, endian='<'):
 
 
 class Comms(xtalx.usbcmd.Device):
-    CMD_EP   = 0x01
-    RSP_EP   = 0x81
-    SCOPE_EP = 0x83
+    CMD_EP       = 0x01
+    RSP_EP       = 0x81
+    TELEMETRY_EP = 0x82
+    SCOPE_EP     = 0x83
 
     def __init__(self, usb_dev):
         xtalx.usbcmd.Device.__init__(self, usb_dev, self.CMD_EP, self.RSP_EP,
@@ -78,8 +79,14 @@ class Comms(xtalx.usbcmd.Device):
 
         assert self.fw_version >= 0x200
 
+    def _is_telemetry_supported(self):
+        return True
+
     def _read_scope(self, size, **kwargs):
         return self.usb_dev.read(self.SCOPE_EP, size, **kwargs)
+
+    def _read_telemetry(self, size=128, **kwargs):
+        return self.usb_dev.read(self.TELEMETRY_EP, size, **kwargs)
 
     def _synchronize(self):
         xtalx.usbcmd.Device._synchronize(self)
