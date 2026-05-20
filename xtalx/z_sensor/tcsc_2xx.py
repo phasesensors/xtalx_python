@@ -164,11 +164,10 @@ class Comms(xtalx.usbcmd.Device):
     def _set_t_enable(self, enabled):
         self._exec_command(Opcode.SET_T_ENABLE, [enabled])
 
-    def _read_temp(self):
-        rsp, _ = self._exec_command(Opcode.READ_TEMP)
-        cpu_ticks = (rsp.params[0] | (rsp.params[1] << 32))
-        osc_ticks = rsp.params[2]
-        return osc_ticks, cpu_ticks
+    def get_temp_freq(self, _cpu_freq):
+        rsp, _ = self._exec_command(Opcode.READ_TEMP_FREQ)
+        return struct.unpack(
+                '<d', struct.pack('<2I', rsp.params[0], rsp.params[1]))[0]
 
     def _eval_freqs(self, temp_hz, center_hz, width_hz):
         temp_hz_u   = struct.unpack('<2I', struct.pack('<d', temp_hz))

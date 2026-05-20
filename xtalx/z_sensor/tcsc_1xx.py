@@ -119,7 +119,7 @@ class GetEInfoResponse(btype.Struct):
     _EXPECTED_SIZE  = 56
 
 
-class ReadTempResponse(btype.Struct):
+class ReadTempCountsResponse(btype.Struct):
     opcode          = btype.uint16_t()
     tag             = btype.uint16_t()
     status          = btype.uint32_t()
@@ -363,8 +363,25 @@ class Comms:
         self._exec_command(Opcode.SET_T_ENABLE, params)
 
     def _read_temp(self):
-        rsp = self._exec_command(Opcode.READ_TEMP, b'', cls=ReadTempResponse)
+        rsp = self._exec_command(Opcode.READ_TEMP_COUNTS, b'',
+                                 cls=ReadTempCountsResponse)
         return rsp.osc_ticks, rsp.cpu_ticks
+
+    def get_temp_freq(self, cpu_freq):
+        self._set_t_enable(True)
+        time.sleep(0.5)
+        t0_crystal_ticks, t0_cpu_ticks = self._read_temp()
+        time.sleep(0.5)
+        t1_crystal_ticks, t1_cpu_ticks = self._read_temp()
+        self._set_t_enable(False)
+        time.sleep(0.5)
+
+        dt = (t1_cpu_ticks - t0_cpu_ticks) / cpu_freq
+        if dt == 0:
+            return None
+
+        dcrystal = (t1_crystal_ticks - t0_crystal_ticks) & 0xFFFFFFFF
+        return dcrystal * 8 / dt
 
     def _eval_freqs(self, temp_hz, center_hz, width_hz):
         params = EvalFreqsPayload(temp_hz=temp_hz, center_hz=center_hz,

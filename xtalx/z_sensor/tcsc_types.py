@@ -34,13 +34,14 @@ class Opcode(IntEnum):
     START_SWEEPER       = 4
     START_FIXED_OUT     = 6
     SET_T_ENABLE        = 8
-    READ_TEMP           = 9
+    READ_TEMP_COUNTS    = 9
     FIT_POINTS          = 10
     EVAL_FREQS          = 14
     GEN_HIRES_FREQS     = 15
     GET_EINFO           = 16
     AUTO_CHIRP          = 17
     READ_SWEEP_RESULT   = 21
+    READ_TEMP_FREQ      = 22
     BAD_OPCODE          = 0xCCCC
 
 

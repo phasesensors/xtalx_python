@@ -243,8 +243,8 @@ class TCSC_U5(TinCan):
         '''
         self.comms._set_t_enable(enabled)
 
-    def read_temp(self):
-        return self.comms._read_temp()
+    def get_temp_freq(self):
+        return self.comms.get_temp_freq(self.CPU_FREQ)
 
     def eval_freqs(self, temp_hz, center_hz, width_hz):
         '''
