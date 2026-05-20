@@ -11,7 +11,7 @@ from .tcsc_types import (DriveType, ResetReason, Opcode, GetInfoResponse,
                          SweepFit)
 
 
-class GetInfoResponseStruct(btype.Struct):
+class GetInfoResponseStruct(btype.Struct, endian='<'):
     mcu_frequency                   = btype.uint32_t()
     aclk_divisor                    = btype.uint32_t()
     dclk_divisor                    = btype.uint32_t()
@@ -33,8 +33,9 @@ class GetInfoResponseStruct(btype.Struct):
     _EXPECTED_SIZE                  = 56
 
 
-class GetEInfoResponseStruct(btype.Struct):
+class GetEInfoResponseStruct(btype.Struct, endian='<'):
     calibration_date                = btype.uint32_t()
+    rsrv                            = btype.uint32_t()
     r_source                        = btype.float64_t()
     r_feedback                      = btype.float64_t()
     dac_to_v_coefs                  = btype.Array(btype.float64_t(), 2)
@@ -42,7 +43,7 @@ class GetEInfoResponseStruct(btype.Struct):
     _EXPECTED_SIZE                  = 56
 
 
-class FitPointsResponseStruct(btype.Struct):
+class FitPointsResponseStruct(btype.Struct, endian='<'):
     fit_status                      = btype.uint32_t()
     fit_flags                       = btype.uint32_t()
     fit_niter                       = btype.uint32_t()
@@ -56,7 +57,7 @@ class FitPointsResponseStruct(btype.Struct):
     _EXPECTED_SIZE                  = 56
 
 
-class EvalFreqsResponseStruct(btype.Struct):
+class EvalFreqsResponseStruct(btype.Struct, endian='<'):
     flags                           = btype.uint32_t()
     rsrv                            = btype.uint32_t()
     temp_c                          = btype.float64_t()
