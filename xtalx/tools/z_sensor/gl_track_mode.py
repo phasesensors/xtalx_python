@@ -11,6 +11,7 @@ import glotlib
 import simple_tsdb
 
 import xtalx.z_sensor
+import xtalx.z_sensor.tcsc_types
 from xtalx.z_sensor.peak_tracker import Delegate
 
 from . import z_common
@@ -30,6 +31,9 @@ HISTORY_COLORS = [(interp(BASE_COLOR[0], 1, HISTORY_PLOTS, t),
 
 
 LINE_WIDTH = 1
+
+TELEMETRY_RUNNING = True
+TELEMETRY_THREAD = None
 
 
 class TrackMode(Enum):
@@ -436,6 +440,54 @@ class TrackerWindow(glotlib.Window, Delegate):
                                          temp_freq)
 
 
+def poll_telemetry(tc, zl, pq):
+    # Discard the first telemetry packet since it will be stale.
+    tc.read_telemetry()
+    seq_num = None
+
+    if pq:
+        if isinstance(pq, simple_tsdb.PushQueue):
+            path = 'sensor_data/tincan_temp_data/' + tc.serial_num
+        else:
+            pq = None
+
+    while TELEMETRY_RUNNING:
+        t = tc.read_telemetry()
+        if not t:
+            continue
+
+        if seq_num is None:
+            seq_num = t.seq_num
+        elif t.seq_num != seq_num + 1:
+            lost_seqs = t.seq_num - seq_num - 1
+            tc.info('Lost %u telemetry packets.' % lost_seqs)
+        seq_num = t.seq_num
+
+        if isinstance(t, xtalx.z_sensor.tcsc_types.TelemetryTemperature):
+            zl.log_telemetry_temp(tc, t)
+            if pq:
+                pq.append(t.to_stsdb_point(), path)
+
+
+def start_telemetry_thread(tc, zl, pq):
+    global TELEMETRY_THREAD
+
+    if not tc.is_telemetry_supported():
+        return
+
+    TELEMETRY_THREAD = threading.Thread(target=poll_telemetry,
+                                        args=(tc, zl, pq))
+    TELEMETRY_THREAD.start()
+
+
+def stop_telemetry_thread():
+    global TELEMETRY_RUNNING
+
+    TELEMETRY_RUNNING = False
+    if TELEMETRY_THREAD is not None:
+        TELEMETRY_THREAD.join()
+
+
 def main(rv):
     c, pq = z_common.parse_config(rv)
 
@@ -451,6 +503,7 @@ def main(rv):
               za.search_time_secs, za.sweep_time_secs,
               settle_ms=za.settle_ms, delegate=tw)
     pt.start_threaded()
+    start_telemetry_thread(tc, zl, pq)
 
     try:
         glotlib.interact()
@@ -458,6 +511,7 @@ def main(rv):
         print()
     finally:
         pt.stop_threaded()
+        stop_telemetry_thread()
 
     if pq:
         pq.flush()

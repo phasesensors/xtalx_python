@@ -27,7 +27,7 @@ class ZLogger:
     Helper class that takes care of logging measurements to the console as well
     as writing fit and dump files, if specified.
     '''
-    def __init__(self, fit_file, dump_file):
+    def __init__(self, fit_file, dump_file, show_t_telemetry):
         if dump_file:
             dump_file = open(  # pylint: disable=R1732
                     dump_file, 'a', encoding='utf8')
@@ -45,8 +45,9 @@ class ZLogger:
         else:
             fit_file = None
 
-        self.fit_file  = fit_file
-        self.dump_file = dump_file
+        self.fit_file         = fit_file
+        self.dump_file        = dump_file
+        self.show_t_telemetry = show_t_telemetry
 
     def log_chirp(self, tc, nchirps, lf):
         if lf is not None:
@@ -97,6 +98,13 @@ class ZLogger:
 
         return T, D, V
 
+    def log_telemetry_temp(self, tc, telemetry):
+        if not self.show_t_telemetry:
+            return
+
+        tag = 'T'
+        tc.log(tag, 'temp_hz %s T %s' % (telemetry.temp_freq, telemetry.temp_c))
+
 
 class ZDelegate(xtalx.z_sensor.peak_tracker.Delegate):
     '''
@@ -116,20 +124,22 @@ class ZDelegate(xtalx.z_sensor.peak_tracker.Delegate):
 
 
 def parse_config(rv):
-    if not rv.config:
-        return None, None
-
     pq = None
-    with open(rv.config, encoding='utf8') as f:
-        c = Config(f.readlines(), [])
-        if rv.use_simple_tsdb:
-            pq = simple_tsdb.PushQueue('127.0.0.1', 4000)
-        elif c.has_keys(['influx_host', 'influx_user', 'influx_password',
-                         'influx_database']):
-            pq = InfluxDBPushQueue(c.influx_host, 8086, c.influx_user,
-                                   c.influx_password,
-                                   database=c.influx_database, ssl=True,
-                                   verify_ssl=True, timeout=100)
+    if rv.use_simple_tsdb:
+        pq = simple_tsdb.PushQueue('127.0.0.1', 4000)
+
+    c = None
+    if rv.config:
+        with open(rv.config, encoding='utf8') as f:
+            c = Config(f.readlines(), [])
+            if pq is None and c.has_keys(['influx_host',
+                                          'influx_user',
+                                          'influx_password',
+                                          'influx_database']):
+                pq = InfluxDBPushQueue(c.influx_host, 8086, c.influx_user,
+                                       c.influx_password,
+                                       database=c.influx_database, ssl=True,
+                                       verify_ssl=True, timeout=100)
 
     return c, pq
 
@@ -152,7 +162,7 @@ def parse_args(tc, rv):
 
     return (ZArgs(amplitude, rv.nfreqs, rv.search_time_secs, rv.sweep_time_secs,
                   rv.settle_ms),
-            ZLogger(rv.fit_file, rv.dump_file))
+            ZLogger(rv.fit_file, rv.dump_file, rv.show_t_telemetry))
 
 
 def add_arguments(parser):
@@ -168,3 +178,4 @@ def add_arguments(parser):
     parser.add_argument('--config', '-c')
     parser.add_argument('--use-simple-tsdb', action='store_true')
     parser.add_argument('--track-impedance', action='store_true')
+    parser.add_argument('--show-t-telemetry', action='store_true')

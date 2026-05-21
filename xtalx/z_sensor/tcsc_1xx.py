@@ -8,7 +8,7 @@ import usb.core
 import btype
 
 from .tcsc_types import (DriveType, ResetReason, Opcode, GetInfoResponse,
-                         SweepFit)
+                         SweepFit, TelemetryNotSupportedException)
 
 
 class StartCalPayload(btype.Struct):
@@ -119,7 +119,7 @@ class GetEInfoResponse(btype.Struct):
     _EXPECTED_SIZE  = 56
 
 
-class ReadTempResponse(btype.Struct):
+class ReadTempCountsResponse(btype.Struct):
     opcode          = btype.uint16_t()
     tag             = btype.uint16_t()
     status          = btype.uint32_t()
@@ -154,7 +154,8 @@ class StartSweepPayload(btype.Struct):
 
 class Comms:
     def __init__(self, usb_dev):
-        self.usb_dev = usb_dev
+        self.usb_dev      = usb_dev
+        self.last_time_ns = 0
 
         try:
             self.serial_num = usb_dev.serial_number
@@ -184,6 +185,9 @@ class Comms:
 
         self.cmd_buf_len = self._get_info().cmd_buf_len
 
+    def _is_telemetry_supported(self):
+        return False
+
     @staticmethod
     def _set_configuration(usb_dev, bConfigurationValue, force=False):
         cfg = None
@@ -206,6 +210,9 @@ class Comms:
 
     def _read_scope(self, size, **kwargs):
         return self.usb_dev.read(self.SCOPE_EP, size, **kwargs)
+
+    def _read_telemetry(self, _size=128, **_kwargs):
+        raise TelemetryNotSupportedException()
 
     def _send_abort(self):
         self._write_cmd(b'')
@@ -363,8 +370,25 @@ class Comms:
         self._exec_command(Opcode.SET_T_ENABLE, params)
 
     def _read_temp(self):
-        rsp = self._exec_command(Opcode.READ_TEMP, b'', cls=ReadTempResponse)
+        rsp = self._exec_command(Opcode.READ_TEMP_COUNTS, b'',
+                                 cls=ReadTempCountsResponse)
         return rsp.osc_ticks, rsp.cpu_ticks
+
+    def get_temp_freq(self, cpu_freq):
+        self._set_t_enable(True)
+        time.sleep(0.5)
+        t0_crystal_ticks, t0_cpu_ticks = self._read_temp()
+        time.sleep(0.5)
+        t1_crystal_ticks, t1_cpu_ticks = self._read_temp()
+        self._set_t_enable(False)
+        time.sleep(0.5)
+
+        dt = (t1_cpu_ticks - t0_cpu_ticks) / cpu_freq
+        if dt == 0:
+            return None
+
+        dcrystal = (t1_crystal_ticks - t0_crystal_ticks) & 0xFFFFFFFF
+        return dcrystal * 8 / dt
 
     def _eval_freqs(self, temp_hz, center_hz, width_hz):
         params = EvalFreqsPayload(temp_hz=temp_hz, center_hz=center_hz,
@@ -376,3 +400,11 @@ class Comms:
         params = GenHiresFreqsPayload(f0=f0, width=width, N=N).pack()
         self._send_command(Opcode.GEN_HIRES_FREQS, params, b'', 1000)
         return self._read_rsp(8*(2*N + 1), timeout=1000)
+
+    def time_ns_increasing(self):
+        '''
+        Returns a time value in nanoseconds that is guaranteed to increase
+        after every single call.  This function is not thread-safe.
+        '''
+        self.last_time_ns = t = max(time.time_ns(), self.last_time_ns + 1)
+        return t

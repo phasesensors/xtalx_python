@@ -11,7 +11,7 @@ from .tcsc_types import (DriveType, ResetReason, Opcode, GetInfoResponse,
                          SweepFit)
 
 
-class GetInfoResponseStruct(btype.Struct):
+class GetInfoResponseStruct(btype.Struct, endian='<'):
     mcu_frequency                   = btype.uint32_t()
     aclk_divisor                    = btype.uint32_t()
     dclk_divisor                    = btype.uint32_t()
@@ -33,8 +33,9 @@ class GetInfoResponseStruct(btype.Struct):
     _EXPECTED_SIZE                  = 56
 
 
-class GetEInfoResponseStruct(btype.Struct):
+class GetEInfoResponseStruct(btype.Struct, endian='<'):
     calibration_date                = btype.uint32_t()
+    rsrv                            = btype.uint32_t()
     r_source                        = btype.float64_t()
     r_feedback                      = btype.float64_t()
     dac_to_v_coefs                  = btype.Array(btype.float64_t(), 2)
@@ -42,7 +43,7 @@ class GetEInfoResponseStruct(btype.Struct):
     _EXPECTED_SIZE                  = 56
 
 
-class FitPointsResponseStruct(btype.Struct):
+class FitPointsResponseStruct(btype.Struct, endian='<'):
     fit_status                      = btype.uint32_t()
     fit_flags                       = btype.uint32_t()
     fit_niter                       = btype.uint32_t()
@@ -56,7 +57,7 @@ class FitPointsResponseStruct(btype.Struct):
     _EXPECTED_SIZE                  = 56
 
 
-class EvalFreqsResponseStruct(btype.Struct):
+class EvalFreqsResponseStruct(btype.Struct, endian='<'):
     flags                           = btype.uint32_t()
     rsrv                            = btype.uint32_t()
     temp_c                          = btype.float64_t()
@@ -66,9 +67,10 @@ class EvalFreqsResponseStruct(btype.Struct):
 
 
 class Comms(xtalx.usbcmd.Device):
-    CMD_EP   = 0x01
-    RSP_EP   = 0x81
-    SCOPE_EP = 0x83
+    CMD_EP       = 0x01
+    RSP_EP       = 0x81
+    TELEMETRY_EP = 0x82
+    SCOPE_EP     = 0x83
 
     def __init__(self, usb_dev):
         xtalx.usbcmd.Device.__init__(self, usb_dev, self.CMD_EP, self.RSP_EP,
@@ -77,8 +79,14 @@ class Comms(xtalx.usbcmd.Device):
 
         assert self.fw_version >= 0x200
 
+    def _is_telemetry_supported(self):
+        return True
+
     def _read_scope(self, size, **kwargs):
         return self.usb_dev.read(self.SCOPE_EP, size, **kwargs)
+
+    def _read_telemetry(self, size=128, **kwargs):
+        return self.usb_dev.read(self.TELEMETRY_EP, size, **kwargs)
 
     def _synchronize(self):
         xtalx.usbcmd.Device._synchronize(self)
@@ -116,6 +124,8 @@ class Comms(xtalx.usbcmd.Device):
 
     def _get_einfo(self):
         _, data = self._exec_command(Opcode.GET_EINFO)
+        if not data:
+            return None
         return GetEInfoResponseStruct.unpack(data)
 
     def _send_scope_cmd(self, dds_skip, amplitude):
@@ -164,11 +174,10 @@ class Comms(xtalx.usbcmd.Device):
     def _set_t_enable(self, enabled):
         self._exec_command(Opcode.SET_T_ENABLE, [enabled])
 
-    def _read_temp(self):
-        rsp, _ = self._exec_command(Opcode.READ_TEMP)
-        cpu_ticks = (rsp.params[0] | (rsp.params[1] << 32))
-        osc_ticks = rsp.params[2]
-        return osc_ticks, cpu_ticks
+    def get_temp_freq(self, _cpu_freq):
+        rsp, _ = self._exec_command(Opcode.READ_TEMP_FREQ)
+        return struct.unpack(
+                '<d', struct.pack('<2I', rsp.params[0], rsp.params[1]))[0]
 
     def _eval_freqs(self, temp_hz, center_hz, width_hz):
         temp_hz_u   = struct.unpack('<2I', struct.pack('<d', temp_hz))
