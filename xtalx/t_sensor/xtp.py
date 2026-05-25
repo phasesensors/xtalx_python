@@ -31,7 +31,7 @@ class Opcode(IntEnum):
     SAVE_PARAMS             = 0x2FF
 
 
-class TelemetryPacket(btype.Struct):
+class TelemetryPacket(btype.Struct, endian='<'):
     seq_num        = btype.uint32_t()
     flags          = btype.uint32_t()
     temp_hz        = btype.float64_t()
@@ -68,10 +68,10 @@ class Measurement:
     def tostring(self, verbose=False):
         s = '%s: ' % self.sensor
         if verbose:
-            s = ('F 0x%04X tf %s t %s' %
-                 (self.flags, self.temp_freq, self.temp_c))
+            s += ('F 0x%04X tf %s t %s' %
+                  (self.flags, self.temp_freq, self.temp_c))
         else:
-            s = '%s C' % self.temp_c
+            s += '%s C' % self.temp_c
 
         return s
 

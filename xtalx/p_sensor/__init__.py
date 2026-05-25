@@ -7,6 +7,7 @@ from .xhtism import XHTISM
 from .xhtiss import XHTISS
 from .xmhti import XMHTI
 from .xti import XTI
+from .xti15 import XTI15
 
 
 def find_xti(**kwargs):
@@ -24,6 +25,25 @@ def make_xti(usb_dev, **kwargs):
         return XTI(usb_dev, **kwargs)
 
     raise Exception('Unrecognized product string: %s' % usb_dev.product)
+
+
+def find_xti15(**kwargs):
+    return xtalx.tools.usb.find(idVendor=0x0483, idProduct=0xA34E,
+                                bDeviceClass=0xFF, bDeviceSubClass=0x13,
+                                find_all=True, **kwargs)
+
+
+def find_one_xti15(**kwargs):
+    return xtalx.tools.usb.find_one(idVendor=0x0483, idProduct=0xA34E,
+                                    bDeviceClass=0xFF, bDeviceSubClass=0x13,
+                                    find_all=True, **kwargs)
+
+
+def make_xti15(usb_dev, **kwargs):
+    if usb_dev.bDeviceClass == 0xFF and usb_dev.bDeviceSubClass == 0x13:
+        return XTI15(usb_dev, **kwargs)
+
+    raise Exception('Unrecognized device: %s' % usb_dev)
 
 
 def find_xmhti(**kwargs):
@@ -62,6 +82,7 @@ __all__ = ['find_xti',
            'make_xmhti',
            'make',
            'XTI',
+           'XTI15',
            'XHTI',
            'XHTIS',
            'XHTISM',
