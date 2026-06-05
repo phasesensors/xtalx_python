@@ -1,7 +1,9 @@
 # Copyright (c) 2020-2023 by Phase Advanced Sensor Systems Corp.
 from enum import IntEnum
+import errno
 
 import btype
+import usb
 
 import xtalx.usbcmd
 
@@ -18,6 +20,10 @@ class Opcode(IntEnum):
     SET_T_POLY_PARAMS       = 0x103
     GET_P_POLY_PARAMS       = 0x104
     SET_P_POLY_PARAMS       = 0x105
+    PULSE_P_ANTENNA         = 0x106
+    PULSE_T_ANTENNA         = 0x107
+    SET_P_POWER             = 0x108
+    SET_T_POWER             = 0x109
 
     ERASE_FLASH_PARAMS      = 0x2FD
     ERASE_RAM_PARAMS        = 0x2FE
@@ -97,8 +103,24 @@ class XTI15(xtalx.usbcmd.Device):
         super().__init__(usb_dev, CMD_EP, RSP_EP, 256, 256, git_sha1_index=6,
                          default_configuration=0x68)
 
+        self._halt_yield = True
+
     def __str__(self):
         return 'XTI(%s)' % self.serial_num
+
+    def set_p_oscillator_power(self, enabled):
+        '''
+        Enables or disables power to the P oscillator.
+        '''
+        print('Setting power enabled: %s' % enabled)
+        self._exec_command(Opcode.SET_P_POWER, [int(enabled)])
+
+    def pulse_p_antenna(self, N=10000):
+        '''
+        Pulse the P antenna N times in an attempt to kickstart the oscillator.
+        '''
+        print('Sending command to pulse P antenna.')
+        self._exec_command(Opcode.PULSE_P_ANTENNA, [N])
 
     def read_measurement(self, timeout=2000):
         '''
@@ -107,3 +129,27 @@ class XTI15(xtalx.usbcmd.Device):
         '''
         p = self.usb_dev.read(TELEMETRY_EP, 64, timeout=timeout)
         return Measurement._from_packet(self, p)
+
+    def _yield_measurements(self, _do_reset, timeout):
+        while not self._halt_yield:
+            try:
+                yield self.read_measurement(timeout=timeout)
+            except usb.core.USBError as e:
+                if e.errno != errno.ETIMEDOUT:
+                    raise
+                continue
+
+    def yield_measurements(self, do_reset=True, timeout=2000):
+        '''
+        Yields Measurement objects synchronously in the current thread,
+        blocking while waiting for new measurements to be acquired.
+        '''
+        self._halt_yield = False
+        yield from self._yield_measurements(do_reset, timeout=timeout)
+
+    def halt_yield(self):
+        '''
+        Halts an ongoing yield_measurements() call, causing it to eventually
+        terminate the generator loop.
+        '''
+        self._halt_yield = True

@@ -6,6 +6,7 @@ import math
 import time
 
 import glotlib
+import glfw
 
 import xtalx.p_sensor
 import xtalx.modbus_adapter
@@ -18,9 +19,11 @@ LINE_WIDTH = 1
 
 
 class TrackerWindow(glotlib.Window):
-    def __init__(self, name, period, show_lores_data, display_frequencies):
+    def __init__(self, xtalx, name, period, show_lores_data,
+                 display_frequencies):
         super().__init__(900, 700, msaa=4, name=name)
 
+        self.xtalx               = xtalx
         self.period              = period
         self.show_lores_data     = show_lores_data
         self.display_frequencies = display_frequencies
@@ -92,6 +95,14 @@ class TrackerWindow(glotlib.Window):
             vline.set_x_data(data_x)
         self.mark_dirty()
 
+    def handle_key_press(self, key):
+        if key == glfw.KEY_P:
+            self.xtalx.pulse_p_antenna(10000)
+        elif key == glfw.KEY_0:
+            self.xtalx.set_p_oscillator_power(False)
+        elif key == glfw.KEY_1:
+            self.xtalx.set_p_oscillator_power(True)
+
     def update_geometry(self, _t):
         updated = False
 
@@ -108,20 +119,22 @@ class TrackerWindow(glotlib.Window):
 
         if new_data:
             updated = True
+            has_lores = hasattr(new_data[0], 'lores_temp_freq')
 
             # Low-res temperature measurements.
-            if self.display_frequencies:
-                X = [m._timestamp for m in new_data
-                     if m.lores_temp_freq is not None]
-                Y = [m.lores_temp_freq for m in new_data
-                     if m.lores_temp_freq is not None]
-            else:
-                X = [m._timestamp for m in new_data
-                     if m.lores_temp_c is not None]
-                Y = [m.lores_temp_c for m in new_data
-                     if m.lores_temp_c is not None]
-            if self.show_lores_data:
-                self.lt_lines.append_x_y_data(X, Y)
+            if has_lores:
+                if self.display_frequencies:
+                    X = [m._timestamp for m in new_data
+                         if m.lores_temp_freq is not None]
+                    Y = [m.lores_temp_freq for m in new_data
+                         if m.lores_temp_freq is not None]
+                else:
+                    X = [m._timestamp for m in new_data
+                         if m.lores_temp_c is not None]
+                    Y = [m.lores_temp_c for m in new_data
+                         if m.lores_temp_c is not None]
+                if self.show_lores_data:
+                    self.lt_lines.append_x_y_data(X, Y)
 
             # Hi-res temperature measurements.
             if self.display_frequencies:
@@ -136,44 +149,46 @@ class TrackerWindow(glotlib.Window):
                 self.temp_label.set_text('%.4f \u00B0C' % new_data[-1].temp_c)
 
             # Low-res pressure (LP) measurements.
-            if self.display_frequencies:
-                X = [m._timestamp for m in new_data
-                     if m.lores_pressure_freq is not None]
-                Y = [m.lores_pressure_freq for m in new_data
-                     if m.lores_pressure_freq is not None]
-            else:
-                X = [m._timestamp for m in new_data
-                     if m.lores_pressure_psi is not None]
-                Y = [m.lores_pressure_psi for m in new_data
-                     if m.lores_pressure_psi is not None]
-            lp_len = len(self.lp_slow_lines.vertices)
-            if lp_len:
-                lp_timestamp = self.lp_measurements.X[-1]
-            self.lp_measurements.append(X, Y)
-            if self.show_lores_data:
-                self.lp_lines.append_x_y_data(X, Y)
-
-            # Averaged data from LP measurements.
-            if len(X):
-                if lp_len:
-                    t0    = int(lp_timestamp // self.period) * self.period
-                    index = lp_len - 1
+            if has_lores:
+                if self.display_frequencies:
+                    X = [m._timestamp for m in new_data
+                         if m.lores_pressure_freq is not None]
+                    Y = [m.lores_pressure_freq for m in new_data
+                         if m.lores_pressure_freq is not None]
                 else:
-                    t0    = int(X[0] // self.period) * self.period
-                    index = 0
-
-                timestamps = []
-                pressures  = []
-                t          = t0
-                while t <= X[-1]:
-                    p = self.lp_measurements.get_avg_value(t, t + self.period)
-                    if p is not None:
-                        timestamps.append(t + self.period / 2)
-                        pressures.append(p)
-                    t += self.period
+                    X = [m._timestamp for m in new_data
+                         if m.lores_pressure_psi is not None]
+                    Y = [m.lores_pressure_psi for m in new_data
+                         if m.lores_pressure_psi is not None]
+                lp_len = len(self.lp_slow_lines.vertices)
+                if lp_len:
+                    lp_timestamp = self.lp_measurements.X[-1]
+                self.lp_measurements.append(X, Y)
                 if self.show_lores_data:
-                    self.lp_slow_lines.sub_x_y_data(index, timestamps,
-                                                    pressures)
+                    self.lp_lines.append_x_y_data(X, Y)
+
+                # Averaged data from LP measurements.
+                if len(X):
+                    if lp_len:
+                        t0    = int(lp_timestamp // self.period) * self.period
+                        index = lp_len - 1
+                    else:
+                        t0    = int(X[0] // self.period) * self.period
+                        index = 0
+
+                    timestamps = []
+                    pressures  = []
+                    t          = t0
+                    while t <= X[-1]:
+                        p = self.lp_measurements.get_avg_value(t,
+                                                               t + self.period)
+                        if p is not None:
+                            timestamps.append(t + self.period / 2)
+                            pressures.append(p)
+                        t += self.period
+                    if self.show_lores_data:
+                        self.lp_slow_lines.sub_x_y_data(index, timestamps,
+                                                        pressures)
 
             # Hi-res pressure (P) measurements.
             if self.display_frequencies:
@@ -251,6 +266,10 @@ def make_sensor(args):
     if dev is not None:
         return xtalx.p_sensor.make(dev)
 
+    dev = xtalx.p_sensor.find_one_xti15(serial_number=args.serial_number)
+    if dev is not None:
+        return xtalx.p_sensor.make_xti15(dev)
+
     dev = xtalx.modbus_adapter.find_one_mba(serial_number=args.serial_number)
     if dev is not None:
         bus = xtalx.modbus_adapter.make_mba(dev, baud_rate=args.baud_rate)
@@ -293,7 +312,7 @@ def main(args):
     else:
         csv_file = None
 
-    tw  = TrackerWindow(x.serial_num, args.averaging_period_secs,
+    tw  = TrackerWindow(x, x.serial_num, args.averaging_period_secs,
                         args.show_lores_data, args.display_frequencies)
     mt  = threading.Thread(target=measure_thread,
                            args=(x, tw, csv_file, args.display_frequencies))
