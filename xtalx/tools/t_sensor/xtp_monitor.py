@@ -9,6 +9,7 @@ import xtalx.t_sensor
 
 
 MONITORING = True
+QUIET = False
 
 
 def telemetry_thread(xtp, sdb):
@@ -22,11 +23,15 @@ def telemetry_thread(xtp, sdb):
             p = m.to_stsdb_point()
             sdb.append(p, path)
 
-        xtp.log('M', m.tostring(True), timestamp=m.time_ns)
+        if not QUIET:
+            xtp.log('M', m.tostring(True), timestamp=m.time_ns)
 
 
 def main(args):
     global MONITORING
+    global QUIET
+
+    QUIET = args.quiet
 
     if args.use_simple_tsdb:
         sdb = simple_tsdb.PushQueue('127.0.0.1', 4000)
@@ -78,6 +83,7 @@ def _main():
     parser.add_argument('--serial-number', '-s')
     parser.add_argument('--sample-interval-ms', type=int)
     parser.add_argument('--alpha-shift', type=int)
+    parser.add_argument('--quiet', action='store_true')
     args = parser.parse_args()
 
     try:
