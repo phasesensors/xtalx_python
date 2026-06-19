@@ -45,6 +45,15 @@ CRYSTAL_INFOS = {
     50000 : CrystalInfo(50000, 48000, 52000, 48000, 52000, 15, 48000, 52000,
                         48000, 52000),
 
+    # Pressure crystal.  This is in vacuum and typically has a very high Q-
+    # factor, so when searching the frequency delta should be small.
+    52000 : CrystalInfo(52000, 51500, 52500, 51500, 52500, 15, 51500, 52500,
+                        51500, 52500),
+
+    # 60 kHz crystal in a can.
+    60000 : CrystalInfo(60000, 59000, 61000, 59000, 61000, 7, 59000, 61000,
+                        59000, 61000),
+
     # Temperature crystal.  This is in vacuum and has a very high Q-factor, so
     # when searching the frequency delta should be small.
     262000 : CrystalInfo(262000, 260000, 264000, 260000, 264000, 15,
