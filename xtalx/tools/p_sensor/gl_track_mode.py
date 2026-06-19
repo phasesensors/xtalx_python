@@ -98,10 +98,16 @@ class TrackerWindow(glotlib.Window):
     def handle_key_press(self, key):
         if key == glfw.KEY_P:
             self.xtalx.pulse_p_antenna(10000)
+        elif key == glfw.KEY_T:
+            self.xtalx.pulse_t_antenna(10000)
         elif key == glfw.KEY_0:
             self.xtalx.set_p_oscillator_power(False)
         elif key == glfw.KEY_1:
             self.xtalx.set_p_oscillator_power(True)
+        elif key == glfw.KEY_9:
+            self.xtalx.set_t_oscillator_power(False)
+        elif key == glfw.KEY_2:
+            self.xtalx.set_t_oscillator_power(True)
 
     def update_geometry(self, _t):
         updated = False

@@ -17,17 +17,18 @@ import xtalx.tools.modbus.serial
 LOG_LEVEL = logging.INFO
 
 
-def sensor_thread(xhtism, idb):
+def sensor_thread(xhtism, idb, poll_interval_secs):
     # Monitor the sensor.
     logging.info('%s: Monitoring...', xhtism.serial_num)
-    for m in xhtism.yield_measurements():
+    for m in xhtism.yield_measurements(poll_interval_sec=poll_interval_secs):
         if idb:
             point = m.to_influx_point()
             if point['fields']:
                 idb.append(point)
 
-        logging.info('%s: tf %.6f pf %.6f ',
-                     xhtism.serial_num, m.temp_freq, m.pressure_freq)
+        logging.info('%s: mA %.1f tf %.6f pf %.6f ',
+                     xhtism.serial_num, m._current_amps * 1000, m.temp_freq,
+                     m.pressure_freq)
 
 
 def main(rv):
@@ -74,7 +75,8 @@ def main(rv):
         logging.info('%s: P Coefficient: %u', xhtism.serial_num, p_c)
         xhtisms.append(xhtism)
 
-        t = threading.Thread(target=sensor_thread, args=(xhtism, idb))
+        t = threading.Thread(target=sensor_thread, args=(xhtism, idb,
+                                                         rv.poll_interval_secs))
         t.start()
         threads.append(t)
 
@@ -103,6 +105,7 @@ def _main():
     parser.add_argument('--baud-rate', '-b', default=115200, type=int)
     parser.add_argument('--addr', '-a', action='append', default=None)
     parser.add_argument('--modbus-adapter-serial-number', '-s')
+    parser.add_argument('--poll-interval-secs', type=float, default=0.1)
 
     try:
         main(parser.parse_args())

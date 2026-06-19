@@ -112,7 +112,7 @@ class XTI15(xtalx.usbcmd.Device):
         '''
         Enables or disables power to the P oscillator.
         '''
-        print('Setting power enabled: %s' % enabled)
+        print('Setting P power enabled: %s' % enabled)
         self._exec_command(Opcode.SET_P_POWER, [int(enabled)])
 
     def pulse_p_antenna(self, N=10000):
@@ -121,6 +121,20 @@ class XTI15(xtalx.usbcmd.Device):
         '''
         print('Sending command to pulse P antenna.')
         self._exec_command(Opcode.PULSE_P_ANTENNA, [N])
+
+    def set_t_oscillator_power(self, enabled):
+        '''
+        Enables or disables power to the T oscillator.
+        '''
+        print('Setting T power enabled: %s' % enabled)
+        self._exec_command(Opcode.SET_T_POWER, [int(enabled)])
+
+    def pulse_t_antenna(self, N=10000):
+        '''
+        Pulse the T antenna N times in an attempt to kickstart the oscillator.
+        '''
+        print('Sending command to pulse T antenna.')
+        self._exec_command(Opcode.PULSE_T_ANTENNA, [N])
 
     def read_measurement(self, timeout=2000):
         '''
@@ -131,6 +145,9 @@ class XTI15(xtalx.usbcmd.Device):
         return Measurement._from_packet(self, p)
 
     def _yield_measurements(self, _do_reset, timeout):
+        # Always discard teh first measurement.
+        self.read_measurement(timeout=timeout)
+
         while not self._halt_yield:
             try:
                 yield self.read_measurement(timeout=timeout)
