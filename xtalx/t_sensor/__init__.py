@@ -4,6 +4,12 @@ import xtalx.tools.usb
 from .xtp import XTP
 
 
+def find(**kwargs):
+    return xtalx.tools.usb.find(idVendor=0x0483, idProduct=0xA34E,
+                                bDeviceClass=0xFF, bDeviceSubClass=0x12,
+                                find_all=True, **kwargs)
+
+
 def find_one(**kwargs):
     return xtalx.tools.usb.find_one(idVendor=0x0483, idProduct=0xA34E,
                                     bDeviceClass=0xFF, bDeviceSubClass=0x12,
