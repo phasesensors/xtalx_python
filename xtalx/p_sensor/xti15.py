@@ -24,6 +24,7 @@ class Opcode(IntEnum):
     PULSE_T_ANTENNA         = 0x107
     SET_P_POWER             = 0x108
     SET_T_POWER             = 0x109
+    SET_LHP_PID_PARAMS      = 0x10A
 
     ERASE_FLASH_PARAMS      = 0x2FD
     ERASE_RAM_PARAMS        = 0x2FE
@@ -37,6 +38,21 @@ class TelemetryPacket(btype.Struct, endian='<'):
     temp_c          = btype.float64_t()
     pressure_hz     = btype.float64_t()
     pressure_psi    = btype.float64_t()
+    _EXPECTED_SIZE  = 40
+
+
+class LHPPIDType(IntEnum):
+    PID_RELATIVE    = 0
+    PID_ABSOLUTE    = 1
+
+
+class LHPPIDParams(btype.Struct, endian='<'):
+    lhp_setpoint_hz = btype.float64_t()
+    lhp_pid_kp      = btype.float64_t()
+    lhp_pid_ki      = btype.float64_t()
+    lhp_pid_kd      = btype.float64_t()
+    lhp_pid_type    = btype.uint32_t()
+    rsrv            = btype.uint32_t()
     _EXPECTED_SIZE  = 40
 
 
@@ -119,7 +135,7 @@ class XTI15(xtalx.usbcmd.Device):
         '''
         Pulse the P antenna N times in an attempt to kickstart the oscillator.
         '''
-        print('Sending command to pulse P antenna.')
+        print('Sending command to pulse P antenna (%u).' % N)
         self._exec_command(Opcode.PULSE_P_ANTENNA, [N])
 
     def set_t_oscillator_power(self, enabled):
@@ -133,8 +149,22 @@ class XTI15(xtalx.usbcmd.Device):
         '''
         Pulse the T antenna N times in an attempt to kickstart the oscillator.
         '''
-        print('Sending command to pulse T antenna.')
+        print('Sending command to pulse T antenna (%u).' % N)
         self._exec_command(Opcode.PULSE_T_ANTENNA, [N])
+
+    def set_lhp_pid_params(self, setpoint_hz, pid_type, kP, kI, kD):
+        '''
+        Sets the target LHP frequency in Hz, the PID type (relative or
+        absolute) and sets the coefficients for the PID loop.
+        '''
+        params = LHPPIDParams(
+                lhp_setpoint_hz=setpoint_hz,
+                lhp_pid_kp=kP,
+                lhp_pid_ki=kI,
+                lhp_pid_kd=kD,
+                lhp_pid_type=pid_type,
+                rsrv=0)
+        self._exec_command(Opcode.SET_LHP_PID_PARAMS, data=params.pack())
 
     def read_measurement(self, timeout=2000):
         '''
