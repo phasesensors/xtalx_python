@@ -22,8 +22,23 @@ def main(args):
     print('         kD: %.12f Hz' % lhp_pid_params.lhp_pid_kd)
     print('   PID Type: %s' % lhp_pid_params.lhp_pid_type)
 
-    if (args.setpoint_hz, args.p, args.i, args.d) == (None, None, None, None):
-        return
+    setpoint_hz = args.setpoint_hz
+    kP = args.p
+    kI = args.i
+    kD = args.d
+    pid_type = args.pid_type
+    if setpoint_hz is None:
+        setpoint_hz = lhp_pid_params.lhp_setpoint_hz
+    if kP is None:
+        kP = lhp_pid_params.lhp_pid_kp
+    if kI is None:
+        kI = lhp_pid_params.lhp_pid_ki
+    if kD is None:
+        kD = lhp_pid_params.lhp_pid_kd
+
+    x.set_lhp_pid_params(setpoint_hz, pid_type, kP, kI, kD)
+
+    assert not args.save_params
 
 
 def _main():
@@ -33,6 +48,7 @@ def _main():
     parser.add_argument('-p', type=float)
     parser.add_argument('-i', type=float)
     parser.add_argument('-d', type=float)
+    parser.add_argument('--pid-type', type=int, default=0)
     parser.add_argument('--save-params', action='store_true')
 
     try:
