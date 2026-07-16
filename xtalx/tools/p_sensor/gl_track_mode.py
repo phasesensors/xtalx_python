@@ -17,6 +17,11 @@ from xtalx.tools.math import XYSeries
 
 LINE_WIDTH = 1
 
+P_ANTENNA = 0
+T_ANTENNA = 0
+LHP_POWERED = 0
+MOSFET_CLOSED = 0
+
 
 class TrackerWindow(glotlib.Window):
     def __init__(self, xtalx, name, period, show_lores_data,
@@ -96,10 +101,17 @@ class TrackerWindow(glotlib.Window):
         self.mark_dirty()
 
     def handle_key_press(self, key):
+        global P_ANTENNA
+        global T_ANTENNA
+        global LHP_POWERED
+        global MOSFET_CLOSED
+
         if key == glfw.KEY_P:
-            self.xtalx.pulse_p_antenna(10000)
+            P_ANTENNA = 1 - P_ANTENNA
+            self.xtalx.pulse_p_antenna(P_ANTENNA)
         elif key == glfw.KEY_T:
-            self.xtalx.pulse_t_antenna(10000)
+            T_ANTENNA = 1 - T_ANTENNA
+            self.xtalx.pulse_t_antenna(T_ANTENNA)
         elif key == glfw.KEY_0:
             self.xtalx.set_p_oscillator_power(False)
         elif key == glfw.KEY_1:
@@ -108,6 +120,12 @@ class TrackerWindow(glotlib.Window):
             self.xtalx.set_t_oscillator_power(False)
         elif key == glfw.KEY_2:
             self.xtalx.set_t_oscillator_power(True)
+        elif key == glfw.KEY_L:
+            LHP_POWERED = 1 - LHP_POWERED
+            self.xtalx.set_lhp_power_switch(LHP_POWERED)
+        elif key == glfw.KEY_M:
+            MOSFET_CLOSED = 1 - MOSFET_CLOSED
+            self.xtalx.set_lhp_mosfet(MOSFET_CLOSED)
 
     def update_geometry(self, _t):
         updated = False
@@ -317,6 +335,12 @@ def main(args):
             csv_file.flush()
     else:
         csv_file = None
+
+    x.pulse_p_antenna(0)
+    x.pulse_t_antenna(0)
+    x.set_lhp_power_switch(False)
+    time.sleep(0.25)
+    x.set_lhp_mosfet(False)
 
     tw  = TrackerWindow(x, x.serial_num, args.averaging_period_secs,
                         args.show_lores_data, args.display_frequencies)
