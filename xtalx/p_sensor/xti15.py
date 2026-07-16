@@ -25,6 +25,7 @@ class Opcode(IntEnum):
     SET_P_POWER             = 0x108
     SET_T_POWER             = 0x109
     SET_LHP_PID_PARAMS      = 0x10A
+    GET_LHP_PID_PARAMS      = 0x10B
 
     ERASE_FLASH_PARAMS      = 0x2FD
     ERASE_RAM_PARAMS        = 0x2FE
@@ -38,6 +39,10 @@ class TelemetryPacket(btype.Struct, endian='<'):
     temp_c          = btype.float64_t()
     pressure_hz     = btype.float64_t()
     pressure_psi    = btype.float64_t()
+    lhp_power       = btype.float32_t()
+    lhp_cP          = btype.float32_t()
+    lhp_cI          = btype.float32_t()
+    lhp_cD          = btype.float32_t()
     _EXPECTED_SIZE  = 40
 
 
@@ -71,7 +76,8 @@ class Measurement:
     If the sensor is uncalibrated then temp_c and pressure_psi will be None.
     '''
     def __init__(self, sensor, seq_num, flags, temp_freq, temp_c,
-                 pressure_freq, pressure_psi, time_ns=None):
+                 pressure_freq, pressure_psi, lhp_power, lhp_cP, lhp_cI, lhp_cD,
+                 time_ns=None):
         self.sensor             = sensor
         self.seq_num            = seq_num
         self.flags              = flags
@@ -79,13 +85,18 @@ class Measurement:
         self.temp_c             = temp_c
         self.pressure_freq      = pressure_freq
         self.pressure_psi       = pressure_psi
+        self.lhp_power          = lhp_power
+        self.lhp_cP             = lhp_cP
+        self.lhp_cI             = lhp_cI
+        self.lhp_cD             = lhp_cD
         self.time_ns            = time_ns or sensor.time_ns_increasing()
 
     @staticmethod
     def _from_packet(sensor, packet):
         tp = TelemetryPacket.unpack(packet)
         return Measurement(sensor, tp.seq_num, tp.flags, tp.temp_hz, tp.temp_c,
-                           tp.pressure_hz, tp.pressure_psi)
+                           tp.pressure_hz, tp.pressure_psi, tp.lhp_power,
+                           tp.lhp_cP, tp.lhp_cI, tp.lhp_cD)
 
     def tostring(self, verbose=False):
         s = '%s: ' % self.sensor
@@ -99,7 +110,7 @@ class Measurement:
         return s
 
     def to_stsdb_point(self, time_ns=None):
-        time_ns = time_ns or self.sensor.time_ns_increasing()
+        time_ns = time_ns or self.time_ns
         p = {
             'time_ns'                   : time_ns,
             'pressure_psi'              : self.pressure_psi,
@@ -112,6 +123,16 @@ class Measurement:
             'lores_temp_freq_hz'        : None,
         }
         return p
+
+    def to_lhp2_stsdb_point(self, time_ns=None):
+        time_ns = time_ns or self.time_ns
+        return {
+            'time_ns'   : time_ns,
+            'cP'        : self.lhp_cP,
+            'cI'        : self.lhp_cI,
+            'cD'        : self.lhp_cD,
+            'power'     : self.lhp_power,
+        }
 
 
 class XTI15(xtalx.usbcmd.Device):
@@ -165,6 +186,13 @@ class XTI15(xtalx.usbcmd.Device):
                 lhp_pid_type=pid_type,
                 rsrv=0)
         self._exec_command(Opcode.SET_LHP_PID_PARAMS, data=params.pack())
+
+    def get_lhp_pid_params(self):
+        '''
+        Returns the LHP PID parameters.
+        '''
+        _, data = self._exec_command(Opcode.GET_LHP_PID_PARAMS)
+        return LHPPIDParams.unpack(data)
 
     def read_measurement(self, timeout=2000):
         '''
