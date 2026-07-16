@@ -43,7 +43,7 @@ class TelemetryPacket(btype.Struct, endian='<'):
     lhp_cP          = btype.float32_t()
     lhp_cI          = btype.float32_t()
     lhp_cD          = btype.float32_t()
-    _EXPECTED_SIZE  = 40
+    _EXPECTED_SIZE  = 56
 
 
 class LHPPIDType(IntEnum):
