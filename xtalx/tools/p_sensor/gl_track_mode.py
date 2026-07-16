@@ -19,16 +19,14 @@ LINE_WIDTH = 1
 
 P_ANTENNA = 0
 T_ANTENNA = 0
-LHP_POWERED = 0
-MOSFET_CLOSED = 0
 
 
 class TrackerWindow(glotlib.Window):
-    def __init__(self, xtalx, name, period, show_lores_data,
+    def __init__(self, xx, name, period, show_lores_data,
                  display_frequencies):
         super().__init__(900, 700, msaa=4, name=name)
 
-        self.xtalx               = xtalx
+        self.xtalx               = xx
         self.period              = period
         self.show_lores_data     = show_lores_data
         self.display_frequencies = display_frequencies
@@ -103,8 +101,6 @@ class TrackerWindow(glotlib.Window):
     def handle_key_press(self, key):
         global P_ANTENNA
         global T_ANTENNA
-        global LHP_POWERED
-        global MOSFET_CLOSED
 
         if key == glfw.KEY_P:
             P_ANTENNA = 1 - P_ANTENNA
@@ -120,12 +116,6 @@ class TrackerWindow(glotlib.Window):
             self.xtalx.set_t_oscillator_power(False)
         elif key == glfw.KEY_2:
             self.xtalx.set_t_oscillator_power(True)
-        elif key == glfw.KEY_L:
-            LHP_POWERED = 1 - LHP_POWERED
-            self.xtalx.set_lhp_power_switch(LHP_POWERED)
-        elif key == glfw.KEY_M:
-            MOSFET_CLOSED = 1 - MOSFET_CLOSED
-            self.xtalx.set_lhp_mosfet(MOSFET_CLOSED)
 
     def update_geometry(self, _t):
         updated = False
@@ -338,9 +328,6 @@ def main(args):
 
     x.pulse_p_antenna(0)
     x.pulse_t_antenna(0)
-    x.set_lhp_power_switch(False)
-    time.sleep(0.25)
-    x.set_lhp_mosfet(False)
 
     tw  = TrackerWindow(x, x.serial_num, args.averaging_period_secs,
                         args.show_lores_data, args.display_frequencies)

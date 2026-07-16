@@ -22,6 +22,7 @@ def sensor_thread(x, pq):
 
     if pq:
         path = 'sensor_data/xtalx_data/' + x.serial_num
+        lhp2_path = 'sensor_data/lhp2_data/' + x.serial_num
 
     try:
         # Monitor the sensor.
@@ -32,9 +33,10 @@ def sensor_thread(x, pq):
             m = x.read_measurement()
             if pq:
                 pq.append(m.to_stsdb_point(), path)
-            logging.info('%s: t %.3f p %.3f tf %.6f pf %.6f ',
+                pq.append(m.to_lhp2_stsdb_point(), lhp2_path)
+            logging.info('%s: t %.3f p %.3f tf %.6f pf %.6f lhp_power %.6f',
                          x.serial_num, m.temp_c, m.pressure_psi,
-                         m.temp_freq, m.pressure_freq)
+                         m.temp_freq, m.pressure_freq, m.lhp_power)
     finally:
         MONITORING = False
 
