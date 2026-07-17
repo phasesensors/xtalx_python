@@ -173,10 +173,35 @@ class XTI15(xtalx.usbcmd.Device):
         print('Sending command to pulse T antenna (%u).' % N)
         self._exec_command(Opcode.PULSE_T_ANTENNA, [N])
 
+    def set_sample_interval_ms(self, ms):
+        '''
+        Sets the telemetry sample interval in milliseconds.  This is how
+        frequently a new telemetry packet will be generated.  The new value is
+        only stored in the RAM parameter copy.
+        '''
+        self._exec_command(Opcode.SET_SAMPLE_INTERVAL_MS, [ms])
+
+    def set_iir_alpha_shift(self, t_iir_alpha_shift, p_iir_alpha_shift):
+        '''
+        Sets the shift values for the T and P IIR filters.  The alpha value for
+        the filter is equal to:
+
+            alpha = 2 ** (-alpha_shift)
+
+        That is, the shift values are a right-shift amount for the IIR filter
+        fixed-point representation.  The default values are 11 for the T filter
+        and 9 for the P filter.
+
+        The new values are only stored in the RAM parameter copy.
+        '''
+        shift = (p_iir_alpha_shift << 8) | (t_iir_alpha_shift)
+        self._exec_command(Opcode.SET_IIR_ALPHA_SHIFT, [shift])
+
     def set_lhp_pid_params(self, setpoint_hz, pid_type, kP, kI, kD):
         '''
-        Sets the target LHP frequency in Hz, the PID type (relative or
-        absolute) and sets the coefficients for the PID loop.
+        Sets the target LHP frequency in Hz, the PID type (relative or absolute)
+        and sets the coefficients for the PID loop.  The ne values are only
+        stored in the RAM parameter copy.
         '''
         params = LHPPIDParams(
                 lhp_setpoint_hz=setpoint_hz,
@@ -189,7 +214,7 @@ class XTI15(xtalx.usbcmd.Device):
 
     def get_lhp_pid_params(self):
         '''
-        Returns the LHP PID parameters.
+        Returns the LHP PID parameters from the RAM parameters.
         '''
         _, data = self._exec_command(Opcode.GET_LHP_PID_PARAMS)
         return LHPPIDParams.unpack(data)
