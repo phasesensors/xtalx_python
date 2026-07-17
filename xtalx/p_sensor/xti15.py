@@ -227,7 +227,7 @@ class XTI15(xtalx.usbcmd.Device):
         sensor is power-cycled, it will detect the blank flash parameters and
         use default values.
         '''
-        self._exec_command(Opcode.ERASE_FLASH_PARAMS)
+        self._exec_command(Opcode.ERASE_FLASH_PARAMS, [0xC0CAC01A])
 
     def erase_ram_params(self):
         '''
@@ -235,14 +235,14 @@ class XTI15(xtalx.usbcmd.Device):
         resets the filter IIR alpha values, disables LHP support and resets the
         telemetry sample interval.  The LHP heater is turned off.
         '''
-        self._exec_command(Opcode.ERASE_RAM_PARAMS)
+        self._exec_command(Opcode.ERASE_RAM_PARAMS, [0xC1E0D0D0])
 
     def save_params(self):
         '''
         Burns the RAM copy of the sensor parameters into flash so that they will
         be used automatically if/when the sensor is power-cycled.
         '''
-        self._exec_command(Opcode.SAVE_PARAMS)
+        self._exec_command(Opcode.SAVE_PARAMS, [0xCDEDBDBE])
 
     def read_measurement(self, timeout=2000):
         '''
