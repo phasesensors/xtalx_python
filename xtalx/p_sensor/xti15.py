@@ -194,6 +194,31 @@ class XTI15(xtalx.usbcmd.Device):
         _, data = self._exec_command(Opcode.GET_LHP_PID_PARAMS)
         return LHPPIDParams.unpack(data)
 
+    def erase_flash_params(self):
+        '''
+        Erases the parameters stored in flash by clearing the flash log.  This
+        does not affect the RAM copy of flash parameters which is what the
+        sensor uses for all of its runtime operations.  The next time the
+        sensor is power-cycled, it will detect the blank flash parameters and
+        use default values.
+        '''
+        self._exec_command(Opcode.ERASE_FLASH_PARAMS)
+
+    def erase_ram_params(self):
+        '''
+        Resets the RAM copy of the sensor parameters to the defaults.  This
+        resets the filter IIR alpha values, disables LHP support and resets the
+        telemetry sample interval.  The LHP heater is turned off.
+        '''
+        self._exec_command(Opcode.ERASE_RAM_PARAMS)
+
+    def save_params(self):
+        '''
+        Burns the RAM copy of the sensor parameters into flash so that they will
+        be used automatically if/when the sensor is power-cycled.
+        '''
+        self._exec_command(Opcode.SAVE_PARAMS)
+
     def read_measurement(self, timeout=2000):
         '''
         Synchronously read a single measurement from the sensor, blocking if no
