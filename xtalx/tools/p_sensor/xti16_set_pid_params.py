@@ -38,7 +38,8 @@ def main(args):
 
     x.set_lhp_pid_params(setpoint_hz, pid_type, kP, kI, kD)
 
-    assert not args.save_params
+    if args.save_params:
+        x.save_params()
 
 
 def _main():
