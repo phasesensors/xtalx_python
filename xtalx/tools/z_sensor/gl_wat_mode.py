@@ -8,6 +8,7 @@ from enum import Enum
 
 import glotlib
 import glfw
+import simple_tsdb
 
 import xtalx.z_sensor
 from xtalx.z_sensor.peak_tracker import Delegate
@@ -29,10 +30,11 @@ class ViewMode(Enum):
 
 
 class WATWindow(glotlib.Window, Delegate):
-    def __init__(self, tc, csv):
+    def __init__(self, tc, pq, csv):
         super().__init__(1000, 700, msaa=4, name=tc.serial_num)
 
         self.tc             = tc
+        self.pq             = pq
         self.csv            = csv
         self.data_lock      = threading.Lock()
         self.fits           = []
@@ -41,6 +43,11 @@ class WATWindow(glotlib.Window, Delegate):
         self.end_sweep_time = None
         self.sweep_prefix   = ''
         self.view_mode      = ViewMode.F_VS_T
+
+        if pq and isinstance(pq, simple_tsdb.PushQueue):
+            self.stsdb_path = 'sensor_data/tincan_data/' + tc.serial_num
+            self.stsdb_sweep_path = ('sensor_data/tincan_sweep_data/' +
+                                     tc.serial_num)
 
         self.f_vs_T_plot = self.add_plot((3, 4, (1, 11)),
                                          limits=(0, 27000, 130, 29500))
@@ -200,7 +207,7 @@ class WATWindow(glotlib.Window, Delegate):
             self.mark_dirty()
 
     def sweep_callback(self, _tc, pt, t0_ns, duration_ms, points, fw_fit,
-                       hires, _temp_freq, _temp_c):
+                       hires, temp_freq, _temp_c):
         with self.data_lock:
             if pt.sweep_iter > 1:
                 fw_fit._gl_time_ns  = t0_ns + duration_ms * 1000
@@ -209,14 +216,29 @@ class WATWindow(glotlib.Window, Delegate):
             self.points = points
             self.mark_dirty()
 
-        if pt.sweep_iter > 1 and self.csv:
+        if pt.sweep_iter <= 1:
+            return
+
+        if self.csv:
             self.csv.write('%u,%u,%.3f,%.3f\n' %
                            (fw_fit._gl_time_ns, fw_fit._gl_dtime_ns,
                             fw_fit.temp_c, fw_fit.peak_hz))
             self.csv.flush()
 
+        if self.pq:
+            p = self.tc.make_stsdb_point(t0_ns, duration_ms, fw_fit, hires,
+                                         temp_freq)
+            self.pq.append(p, self.stsdb_path)
+            ps = self.tc.make_stsdb_sweep_points(t0_ns, points)
+            self.pq.append_list(ps, self.stsdb_sweep_path)
+
 
 def main(args):
+    if args.use_simple_tsdb:
+        pq = simple_tsdb.PushQueue('127.0.0.1', 4000)
+    else:
+        pq = None
+
     if args.output_csv:
         csv = open(  # pylint: disable=R1732
                 args.output_csv, 'a', encoding='utf8')
@@ -227,7 +249,7 @@ def main(args):
 
     dev    = xtalx.z_sensor.find_one(serial_number=args.sensor)
     tc     = xtalx.z_sensor.make(dev, yield_Y=True)
-    ww     = WATWindow(tc, csv)
+    ww     = WATWindow(tc, pq, csv)
     a      = tc.parse_amplitude(None)
     pt     = xtalx.z_sensor.PeakTracker(tc, a, PT_NFREQS, PT_SEARCH_TIME_SEC,
                                         PT_SWEEP_TIME_SEC,
@@ -247,6 +269,7 @@ def _main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--output-csv', '-o')
     parser.add_argument('--sensor', '-s')
+    parser.add_argument('--use-simple-tsdb', action='store_true')
     args = parser.parse_args()
     main(args)
 
