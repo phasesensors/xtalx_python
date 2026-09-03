@@ -68,7 +68,13 @@ class MBA(xtalx.tools.modbus.Bus,
         return self._exec_command(Opcode.SET_VEXT, [enabled])
 
     def set_comm_params(self, baud_rate, parity=None):
-        params = [baud_rate, 0, 0, PARITY_DICT.get(parity, 0)]
+        if baud_rate <= 19200:
+            t1_5_us = 16500000 // baud_rate
+            t3_5_us = 38500000 // baud_rate
+        else:
+            t1_5_us = 750
+            t3_5_us = 1750
+        params = [baud_rate, t1_5_us, t3_5_us, PARITY_DICT.get(parity, 0)]
         return self._exec_command(Opcode.SET_BAUD_RATE, params)
 
     def measure_current(self):
