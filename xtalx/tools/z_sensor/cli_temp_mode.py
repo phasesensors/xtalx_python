@@ -33,12 +33,30 @@ def temp_thread(tc, interval_secs):
         tc.info('temp_hz %s T %s' % (temp_hz, temp_c))
 
 
+def telemetry_temp_thread(tc, interval_secs):
+    tc.start_fixed_out(0, 0)
+    tc.set_t_enable(True)
+
+    while TEMP_RUNNING:
+        t = tc.read_telemetry()
+        if not isinstance(t, xtalx.z_sensor.tcsc_types.TelemetryTemperature):
+            continue
+
+        tc.info('temp_hz %s T %s' % (t.temp_freq, t.temp_c))
+
+
 def main(args):
     global TEMP_RUNNING
 
     dev = xtalx.z_sensor.find_one(serial_number=args.sensor)
     tc  = xtalx.z_sensor.make(dev, verbose=args.verbose)
-    t   = threading.Thread(target=temp_thread, args=(tc, args.interval_secs))
+
+    if tc.is_telemetry_supported():
+        target = telemetry_temp_thread
+    else:
+        target = temp_thread
+
+    t = threading.Thread(target=target, args=(tc, args.interval_secs))
     t.start()
 
     try:
