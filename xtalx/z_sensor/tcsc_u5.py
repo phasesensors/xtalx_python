@@ -290,7 +290,7 @@ class TCSC_U5(TinCan):
         sensor that doesn't support telemetry.  Blocks until telemetry is
         available, otherwise.
         '''
-        data = self.comms._read_telemetry()
+        data = self.comms._read_telemetry(timeout=10000)
         if not data:
             return None
 
