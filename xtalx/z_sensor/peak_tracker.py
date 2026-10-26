@@ -165,6 +165,12 @@ class PeakTracker:
         freqs       = self.tc.gen_hires_freqs(self.hires_f_center,
                                               self.hires_width,
                                               self.nfreqs // 2)
+        if len(freqs) < 10:
+            self.tc.warn('Only %u frequencies at target peak, switching to '
+                         'search mode.' % len(freqs))
+            self._start_full_search()
+            return
+
         dt          = math.ceil(1000 * self.sweep_time / len(freqs))
         ftups       = [(f, dt) for f in freqs
                        if self.tc.crystal_info.is_valid_freq(f)]
