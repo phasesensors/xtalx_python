@@ -33,7 +33,8 @@ def temp_thread(tc, interval_secs):
         tc.info('temp_hz %s T %s' % (temp_hz, temp_c))
 
 
-def telemetry_temp_thread(tc, interval_secs):
+def telemetry_temp_thread(tc, _interval_secs):
+    # TODO: Need to handle interval_secs properly.
     tc.start_fixed_out(0, 0)
     tc.set_t_enable(True)
 

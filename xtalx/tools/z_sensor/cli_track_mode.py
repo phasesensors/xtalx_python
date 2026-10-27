@@ -17,7 +17,7 @@ TELEMETRY_RUNNING = True
 class Delegate(z_common.ZDelegate):
     def __init__(self, z_logger, tc, pq):
         super().__init__(z_logger)
-        
+
         self.pq = pq
 
         if pq and isinstance(pq, simple_tsdb.PushQueue):
@@ -38,8 +38,8 @@ class Delegate(z_common.ZDelegate):
                 ps = tc.make_stsdb_sweep_points(t0_ns, points)
                 self.pq.append_list(ps, self.stsdb_sweep_path)
             else:
-                p = self.make_influx_point(t0_ns, duration_ms, fw_fit, hires,
-                                           temp_freq)
+                p = tc.make_influx_point(t0_ns, duration_ms, fw_fit, hires,
+                                         temp_freq)
                 self.pq.append(p)
 
 
@@ -75,7 +75,7 @@ def poll_telemetry(tc, zl, pq):
 def main(rv):
     global TELEMETRY_RUNNING
 
-    c, pq = z_common.parse_config(rv)
+    _, pq = z_common.parse_config(rv)
 
     dev    = xtalx.z_sensor.find_one(serial_number=rv.sensor)
     tc     = xtalx.z_sensor.make(dev, verbose=rv.verbose,
