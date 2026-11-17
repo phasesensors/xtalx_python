@@ -13,12 +13,10 @@ import xtalx.modbus_adapter
 import xtalx.spi_adapter
 import xtalx.tools.modbus.serial
 from xtalx.tools.math import XYSeries
+from xtalx.p_sensor.xti15 import ForceChirpMode
 
 
 LINE_WIDTH = 1
-
-P_ANTENNA = 0
-T_ANTENNA = 0
 
 
 class TrackerWindow(glotlib.Window):
@@ -39,10 +37,10 @@ class TrackerWindow(glotlib.Window):
 
         if display_frequencies:
             self.p_plot = self.add_plot(
-                311, limits=(-0.1, 47000, 120, 62000), max_v_ticks=10)
+                411, limits=(-0.1, 47000, 120, 62000), max_v_ticks=10)
         else:
             self.p_plot = self.add_plot(
-                311, limits=(-0.1, -0.5, 120, 300), max_v_ticks=10)
+                411, limits=(-0.1, -0.5, 120, 300), max_v_ticks=10)
         self.lp_lines = self.p_plot.add_steps(X=[], Y=[], width=LINE_WIDTH)
         self.p_lines = self.p_plot.add_steps(X=[], Y=[], width=LINE_WIDTH)
         self.lp_lines.color = (0.78, 0.87, 0.93, 1)
@@ -50,11 +48,11 @@ class TrackerWindow(glotlib.Window):
 
         if display_frequencies:
             self.p_slow_plot = self.add_plot(
-                312, limits=(-0.1, 47000, 120, 62000), max_v_ticks=10,
+                412, limits=(-0.1, 47000, 120, 62000), max_v_ticks=10,
                 sharex=self.p_plot, sharey=self.p_plot)
         else:
             self.p_slow_plot = self.add_plot(
-                312, limits=(-0.1, -0.5, 120, 300), max_v_ticks=10,
+                412, limits=(-0.1, -0.5, 120, 300), max_v_ticks=10,
                 sharex=self.p_plot, sharey=self.p_plot)
         self.lp_slow_lines = self.p_slow_plot.add_lines(X=[], Y=[],
                                                         width=LINE_WIDTH)
@@ -66,17 +64,24 @@ class TrackerWindow(glotlib.Window):
 
         if display_frequencies:
             self.t_plot = self.add_plot(
-                313, limits=(-0.1, 260000, 120, 264000), max_v_ticks=10,
+                413, limits=(-0.1, 260000, 120, 264000), max_v_ticks=10,
                 sharex=self.p_plot)
         else:
             self.t_plot = self.add_plot(
-                313, limits=(-0.1, -0.5, 120, 50), max_v_ticks=10,
+                413, limits=(-0.1, -0.5, 120, 50), max_v_ticks=10,
                 sharex=self.p_plot)
         self.lt_lines = self.t_plot.add_steps(X=[], Y=[], width=LINE_WIDTH)
         self.t_lines = self.t_plot.add_steps(X=[], Y=[],  width=LINE_WIDTH)
         self.lt_lines.color = (0.78, 0.87, 0.93, 1)
         self.t_plot.set_y_label('Temp Hz' if display_frequencies else
                                 'Temp (C)')
+
+        self.lhp_power_plot = self.add_plot(
+            414, limits=(-0.1, -0.1, 120, 1.1), max_v_ticks=10,
+                sharex=self.p_plot)
+        self.lhp_power_lines = self.lhp_power_plot.add_steps(X=[], Y=[],
+                                                             width=LINE_WIDTH)
+        self.lhp_power_plot.set_y_label('Heater Duty')
 
         self.pos_label = self.add_label((0.99, 0.01), '', anchor='SE')
 
@@ -99,15 +104,14 @@ class TrackerWindow(glotlib.Window):
         self.mark_dirty()
 
     def handle_key_press(self, key):
-        global P_ANTENNA
-        global T_ANTENNA
-
         if key == glfw.KEY_P:
-            P_ANTENNA = 1 - P_ANTENNA
-            self.xtalx.pulse_p_antenna(P_ANTENNA)
+            self.xtalx.set_force_chirp_mode(ForceChirpMode.FORCE_P)
         elif key == glfw.KEY_T:
-            T_ANTENNA = 1 - T_ANTENNA
-            self.xtalx.pulse_t_antenna(T_ANTENNA)
+            self.xtalx.set_force_chirp_mode(ForceChirpMode.FORCE_T)
+        elif key == glfw.KEY_N:
+            self.xtalx.set_force_chirp_mode(ForceChirpMode.NONE)
+        elif key == glfw.KEY_S:
+            self.xtalx.set_force_chirp_mode(ForceChirpMode.STOP)
         elif key == glfw.KEY_0:
             self.xtalx.set_p_oscillator_power(False)
         elif key == glfw.KEY_1:
@@ -243,12 +247,22 @@ class TrackerWindow(glotlib.Window):
                 else:
                     self.psi_slow_label.set_text('%.4f PSI' % pressures[-2])
 
+            X = [m._timestamp for m in new_data]
+            Y = [m.lhp_power for m in new_data]
+            self.lhp_power_lines.append_x_y_data(X, Y)
+
         return updated
 
     def measurement_callback(self, m):
         with self.data_lock:
             self.new_data.append(m)
             self.mark_dirty()
+
+        print('%s: t %.3f p %.3f tf %.6f pf %.6f lhp_power %.6f '
+              'P %.6f I %.6f D %.6f' % (
+                  self.xtalx.serial_num, m.temp_c, m.pressure_psi,
+                  m.temp_freq, m.pressure_freq, m.lhp_power,
+                  m.lhp_cP, m.lhp_cI, m.lhp_cD))
 
 
 def measure_thread(x, tw, csv_file, display_frequencies):
@@ -325,9 +339,6 @@ def main(args):
             csv_file.flush()
     else:
         csv_file = None
-
-    x.pulse_p_antenna(0)
-    x.pulse_t_antenna(0)
 
     tw  = TrackerWindow(x, x.serial_num, args.averaging_period_secs,
                         args.show_lores_data, args.display_frequencies)

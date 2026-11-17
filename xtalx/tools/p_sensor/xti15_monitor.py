@@ -34,9 +34,11 @@ def sensor_thread(x, pq):
             if pq:
                 pq.append(m.to_stsdb_point(), path)
                 pq.append(m.to_lhp2_stsdb_point(), lhp2_path)
-            logging.info('%s: t %.3f p %.3f tf %.6f pf %.6f lhp_power %.6f',
+            logging.info('%s: t %.3f p %.3f tf %.6f pf %.6f lhp_power %.6f '
+                         'P %.6f I %.6f D %.6f',
                          x.serial_num, m.temp_c, m.pressure_psi,
-                         m.temp_freq, m.pressure_freq, m.lhp_power)
+                         m.temp_freq, m.pressure_freq, m.lhp_power,
+                         m.lhp_cP, m.lhp_cI, m.lhp_cD)
     finally:
         MONITORING = False
 

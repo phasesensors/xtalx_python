@@ -20,8 +20,7 @@ class Opcode(IntEnum):
     SET_T_POLY_PARAMS       = 0x103
     GET_P_POLY_PARAMS       = 0x104
     SET_P_POLY_PARAMS       = 0x105
-    PULSE_P_ANTENNA         = 0x106
-    PULSE_T_ANTENNA         = 0x107
+    SET_FORCE_CHIRP_MODE    = 0x106
     SET_P_POWER             = 0x108
     SET_T_POWER             = 0x109
     SET_LHP_PID_PARAMS      = 0x10A
@@ -43,7 +42,8 @@ class TelemetryPacket(btype.Struct, endian='<'):
     lhp_cP          = btype.float32_t()
     lhp_cI          = btype.float32_t()
     lhp_cD          = btype.float32_t()
-    _EXPECTED_SIZE  = 56
+    rsrv1           = btype.uint32_t()
+    _EXPECTED_SIZE  = 60
 
 
 class LHPPIDType(IntEnum):
@@ -59,6 +59,13 @@ class LHPPIDParams(btype.Struct, endian='<'):
     lhp_pid_type    = btype.uint32_t()
     rsrv            = btype.uint32_t()
     _EXPECTED_SIZE  = 40
+
+
+class ForceChirpMode(IntEnum):
+    NONE    = 0
+    STOP    = 1
+    FORCE_P = 2
+    FORCE_T = 3
 
 
 class Measurement:
@@ -152,13 +159,6 @@ class XTI15(xtalx.usbcmd.Device):
         print('Setting P power enabled: %s' % enabled)
         self._exec_command(Opcode.SET_P_POWER, [int(enabled)])
 
-    def pulse_p_antenna(self, N=10000):
-        '''
-        Pulse the P antenna N times in an attempt to kickstart the oscillator.
-        '''
-        print('Sending command to pulse P antenna (%u).' % N)
-        self._exec_command(Opcode.PULSE_P_ANTENNA, [N])
-
     def set_t_oscillator_power(self, enabled):
         '''
         Enables or disables power to the T oscillator.
@@ -166,12 +166,12 @@ class XTI15(xtalx.usbcmd.Device):
         print('Setting T power enabled: %s' % enabled)
         self._exec_command(Opcode.SET_T_POWER, [int(enabled)])
 
-    def pulse_t_antenna(self, N=10000):
+    def set_force_chirp_mode(self, fcm):
         '''
-        Pulse the T antenna N times in an attempt to kickstart the oscillator.
+        Forces chirping according to the ForceChirpMode enum value, fcm.
         '''
-        print('Sending command to pulse T antenna (%u).' % N)
-        self._exec_command(Opcode.PULSE_T_ANTENNA, [N])
+        print('Setting chirp mode: %s' % fcm.name)
+        self._exec_command(Opcode.SET_FORCE_CHIRP_MODE, [fcm])
 
     def set_sample_interval_ms(self, ms):
         '''
