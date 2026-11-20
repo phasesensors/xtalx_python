@@ -199,12 +199,13 @@ class PolynomialFit2D:
         '''
         Given the x_domain, y_domain and a list of coefficients of the form:
 
-            [x0y0, x1y0, x2y0, ..., xNy0,
-             x0y1, x1y1, x2y1, ..., xNy1,
+            [x0y0, x0y1, x0y2, ..., x0yN,
+             x1y0, x1y1, x1y2, ..., x1yN,
              ...
-             x0yN, x1yN, x2yN, ..., xNyN]
+             xNy0, xNy1, xNy2, ..., xNyN]
 
-        generate the fit polynomial for evaluation purposes.
+        i.e. coefs[i*(N + 1) + j] is the coefficient of x**i * y**j, generate
+        the fit polynomial for evaluation purposes.
         '''
         order = round(math.sqrt(len(coefs))) - 1
         return PolynomialFit2D(x_domain, y_domain,
