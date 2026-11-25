@@ -38,7 +38,8 @@ class TCSC_U5(TinCan):
         self.crystal_info = crystal_info.CRYSTAL_INFOS.get(
                 self.ginfo.dv_nominal_hz)
 
-        self._sweep_params = None
+        self._sweep_params     = None
+        self._sweep_generation = None
 
     def fft_limit(self):
         return self.ginfo.aclk / 4
@@ -188,14 +189,20 @@ class TCSC_U5(TinCan):
                                     nbufs=nbufs).pack()
             self._sweep_params.append((freq, nbufs))
 
-        sleep_ms = self.comms._sweep_async(amplitude, freq_tuples, bulk_data)
+        sleep_ms, self._sweep_generation = self.comms._sweep_async(amplitude,
+                                                                   freq_tuples,
+                                                                   bulk_data)
 
         wakeup_time = time.localtime(time.time() + sleep_ms / 1000)
 
-        self.info('Sweeping %u frequencies from %.3f-%.3f Hz.  Sensor '
+        if self._sweep_generation is not None:
+            gen_str = ' [generation %u]' % self._sweep_generation
+        else:
+            gen_str = ''
+        self.info('Sweeping %u frequencies from %.3f-%.3f Hz%s.  Sensor '
                   'recommends sleep of %u ms until %s.' %
                   (len(freq_tuples), freq_tuples[0][0], freq_tuples[-1][0],
-                   sleep_ms, time.asctime(wakeup_time)))
+                   gen_str, sleep_ms, time.asctime(wakeup_time)))
 
         return sleep_ms / 1000, sleep_ms
 
