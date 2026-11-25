@@ -135,11 +135,16 @@ class Comms(xtalx.usbcmd.Device):
         self._exec_command(Opcode.AUTO_CHIRP, [skip0, skip1, amplitude])
 
     def _sweep_async(self, amplitude, freq_tuples, bulk_data):
+        '''
+        Returns the recommended sleep duration in ms and the sweep's generation
+        number.  The generation number will be 0 (an invalid generation) for
+        sensors that don't report the generation (2.0.1 and earlier).
+        '''
         rsp, _ = self._exec_command(
                 Opcode.START_SWEEPER,
                 [len(freq_tuples), amplitude, True],
                 bulk_data)
-        return rsp.params[0]
+        return rsp.params[0], rsp.params[1]
 
     def _read_sweep_data(self, _size):
         while True:
