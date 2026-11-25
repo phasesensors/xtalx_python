@@ -236,6 +236,11 @@ class TelemetryTemperature:
         self.temp_c    = temp_c
         self.time_ns   = time_ns or sensor.comms.time_ns_increasing()
 
+    def __repr__(self):
+        return ('TelemetryTemperature(seq_num=%s, flags=0x%08X, temp_freq=%s, '
+                'temp_c=%s)' % (self.seq_num, self.flags, self.temp_freq,
+                                self.temp_c))
+
     @staticmethod
     def _from_packet(sensor, packet):
         tp = TelemetryPacketTemperature.unpack(packet)
