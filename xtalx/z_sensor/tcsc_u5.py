@@ -305,14 +305,31 @@ class TCSC_U5(TinCan):
             viscosity_cp     = None
         return (temp_c, density_g_per_ml, viscosity_cp)
 
-    def gen_hires_freqs(self, f0, width, N):
+    def gen_hires_freqs(self, f0, hwhm, N, span=0):
         '''
-        Generate a list of hi-resolution frequencies to be measured, centered
-        on the peak at f0 of the specified width, with N specifying the number
-        of frequencies in each wing.  A total of 2N + 1 frequencies will be
-        returned.
+        Generate a list of hi-resolution frequencies to be measured around
+        a peak centered at f0, with N specifying the number of frequencies
+        in each wing.  A total of 2N + 1 frequencies will be returned.  N
+        must be 2-511: the firmware's sweep fit needs at least 5
+        frequencies.
+
+        hwhm is the peak's half-width at half-maximum, in Hz (half of the
+        FWHM).  The frequencies run from f0 - span * hwhm to
+        f0 + span * hwhm, with f0 itself in the middle.  A span of 0
+        selects the firmware default of 6, i.e. f0 +/- 6 * hwhm.  Other
+        spans need firmware 0x202 or later.
         '''
-        data = self.comms._gen_hires_freqs(f0, width, N)
+        if not 2 <= N <= 511:
+            raise ValueError('N must be 2-511, got %s' % N)
+        if span:
+            if not 1 <= span <= 0xFFFF:
+                raise ValueError('span must be 0-65535, got %s' % span)
+            if self.fw_version < 0x202:
+                raise ValueError('span requires firmware 0x202 or later; '
+                                 'this sensor has 0x%X' % self.fw_version)
+            data = self.comms._gen_hires_freqs(f0, hwhm, N, span)
+        else:
+            data = self.comms._gen_hires_freqs(f0, hwhm, N)
         N    = 2*N + 1
         size = 8*N
         assert len(data) == size
