@@ -179,16 +179,48 @@ class TCSC_U5(TinCan):
                              offset=AutoChirpHeader._STRUCT.size)
         return AutoChirpResult(hdr, bins)
 
-    def sweep_async(self, amplitude, freq_tuples, ndiscards=2):
+    def sweep_async(self, amplitude, freq_tuples, ndiscards=None):
+        '''
+        Starts a sweep and returns (sleep_s, sleep_ms), the time the sensor
+        recommends waiting before calling read_sweep_data().
+
+        Each entry of freq_tuples is either (f, nbufs) or
+        (f, nbufs, ndiscards); all entries must have the same form.  At
+        each frequency the sensor first discards ndiscards buffers, letting
+        the crystal settle, and then measures nbufs buffers.  Buffers are
+        1 ms long.
+
+        With (f, nbufs) entries, the first frequency discards the ndiscards
+        argument (default 2) and every later frequency discards 5.  With
+        (f, nbufs, ndiscards) entries, each frequency uses its own value and
+        the ndiscards argument must be left as None.
+        '''
         assert 2 <= len(freq_tuples) <= self.ginfo.max_sweep_entries
+
+        lens = {len(ft) for ft in freq_tuples}
+        if lens == {2}:
+            if ndiscards is None:
+                ndiscards = 2
+            entries = [(f, nbufs, ndiscards if i == 0 else 5)
+                       for i, (f, nbufs) in enumerate(freq_tuples)]
+        elif lens == {3}:
+            if ndiscards is not None:
+                raise ValueError('ndiscards argument is not allowed with '
+                                 '(f, nbufs, ndiscards) entries')
+            entries = freq_tuples
+        else:
+            raise ValueError('freq_tuples entries must all be (f, nbufs) '
+                             'or all be (f, nbufs, ndiscards)')
 
         self._sweep_params = []
         bulk_data = b''
-        for i, (f, nbufs) in enumerate(freq_tuples):
+        for f, nbufs, nd in entries:
+            if not 0 <= nd <= 0xFFFF or not 0 <= nbufs <= 0xFFFF:
+                raise ValueError('ndiscards and nbufs must be 0-65535, got '
+                                 '%s and %s at %.3f Hz' % (nd, nbufs, f))
             dds_skip = int(round(2**32 * (f / self.ginfo.dclk)))
             freq     = self.ginfo.dclk * dds_skip / 2**32
-            bulk_data += SweepEntry(dds_skip=dds_skip,
-                                    ndiscards=ndiscards if i == 0 else 5,
+            bulk_data += SweepEntry(dds_skip=dds_skip, ndiscards=nd,
                                     nbufs=nbufs).pack()
             self._sweep_params.append((freq, nbufs))
 
