@@ -10,7 +10,8 @@ from .tincan import TinCan
 from .scope_data import ScopeData
 from .tcsc_types import (SampleHeader, AutoChirpHeader, AutoChirpResult,
                          SweepEntry, SweepResult, ParsedSweepResult,
-                         TelemetryType, TelemetryTemperature)
+                         TelemetryType, TelemetryTemperature,
+                         TelemetryPacketSweepPoint, TelemetrySweepPoint)
 from . import crystal_info
 
 
@@ -293,9 +294,14 @@ class TCSC_U5(TinCan):
     def read_telemetry(self, timeout=None):
         '''
         Reads any pending telemetry packet from the sensor.  Returns None if an
-        unrecognized telemetry type was read.  Throws an exception is used on a
-        sensor that doesn't support telemetry.  Blocks until telemetry is
-        available, otherwise.
+        unrecognized telemetry type was read or if the received telemetry is
+        considered stale.  Throws an exception if used on a sensor that
+        doesn't support telemetry.  Blocks until telemetry is available,
+        otherwise.
+
+        Can return the following types:
+            TelemetryTemperature - for a T telementry packet
+            ParsedSweepResult - for a completed sweep point
         '''
         data = self.comms._read_telemetry(timeout=timeout)
         if not data:
@@ -303,5 +309,23 @@ class TCSC_U5(TinCan):
 
         if data[0] == TelemetryType.TEMPERATURE:
             return TelemetryTemperature._from_packet(self, data)
+        if data[0] == TelemetryType.SWEEP_POINT:
+            tpsp = TelemetryPacketSweepPoint.unpack(data)
+            if tpsp.sweep_generation != self._sweep_generation:
+                return None
+            if not self._sweep_params:
+                return None
+            if tpsp.sweep_index >= len(self._sweep_params):
+                return None
+
+            freq = self.ginfo.dclk * tpsp.dds_skip / 2**32
+            exp_freq = self._sweep_params[tpsp.sweep_index][0]
+            if freq != exp_freq:
+                return None
+
+            nbufs = self._sweep_params[tpsp.sweep_index][1]
+            theta_rad = 0   # What to do about this?
+            return TelemetrySweepPoint._from_packet(self, tpsp, freq, nbufs,
+                                                    theta_rad)
 
         return None

@@ -210,6 +210,7 @@ class ParsedSweepResult:
 
 class TelemetryType(IntEnum):
     TEMPERATURE     = 1
+    SWEEP_POINT     = 2
 
 
 class TelemetryNotSupportedException(Exception):
@@ -217,6 +218,7 @@ class TelemetryNotSupportedException(Exception):
 
 
 class TelemetryPacketTemperature(btype.Struct):
+    # Known as telemetry_t_packet in the firmware.
     telemetry_type      = btype.uint8_t()
     rsrv1               = btype.Array(btype.uint8_t(), 3)
     seq_num             = btype.uint32_t()
@@ -255,3 +257,35 @@ class TelemetryTemperature:
             'temp_freq_hz' : temp_freq,
             'temp_c'       : temp_c,
         }
+
+
+class TelemetryPacketSweepPoint(btype.Struct):
+    # Known as telemetry_z_packet in the firmware.
+    telemetry_type      = btype.uint8_t()
+    rsrv1               = btype.Array(btype.uint8_t(), 3)
+    seq_num             = btype.uint32_t()
+    flags               = btype.uint32_t()
+    rsrv2               = btype.uint32_t()
+    sweep_generation    = btype.uint16_t()
+    sweep_index         = btype.uint16_t()
+    dds_skip            = btype.uint32_t()
+    sweep_result        = SweepResult()
+    _EXPECTED_SIZE      = 88
+
+
+class TelemetrySweepPoint:
+    def __init__(self, sensor, seq_num, sweep_result):
+        self.sensor       = sensor
+        self.seq_num      = seq_num
+        self.sweep_result = sweep_result
+
+    @staticmethod
+    def _from_packet(sensor, tpsp, freq, nbufs, theta_rad):
+        return TelemetrySweepPoint(
+            sensor, tpsp.seq_num,
+            ParsedSweepResult(tpsp.sweep_result, sensor.einfo.r_feedback,
+                              freq, nbufs, sensor.yield_Y, theta_rad))
+
+    def __repr__(self):
+        return ('TelemetrySweepPoint(seq_num=%s, sweep_result=%s)'
+                % (self.seq_num, self.sweep_result))
