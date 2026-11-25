@@ -182,15 +182,26 @@ class ParsedSweepResult:
         self.RR        = list(sweep_result.RR)
         self.nbufs     = nbufs
         self.f         = freq
+        self._yield_Y  = yield_Y
+        self.theta_rad = 0
 
         probea = phasors[0]
         sigin  = phasors[1]
-        Z      = -probea * rf / sigin
+        self.Z = -probea * rf / sigin
+        self.Y = None
+        self.z = None
+
+        self.rotate(theta_rad)
+
+    def rotate(self, theta_rad):
+        Z      = self.Z
         self.Z = complex(
                 Z.real * math.cos(theta_rad) - Z.imag * math.sin(theta_rad),
                 Z.real * math.sin(theta_rad) + Z.imag * math.cos(theta_rad))
         self.Y = 1 / self.Z
-        self.z = self.Y if yield_Y else self.Z
+        self.z = self.Y if self._yield_Y else self.Z
+
+        self.theta_rad += theta_rad
 
 
 class TelemetryType(IntEnum):
