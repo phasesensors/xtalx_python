@@ -283,14 +283,14 @@ class TCSC_U5(TinCan):
         '''
         return self.comms._is_telemetry_supported()
 
-    def read_telemetry(self):
+    def read_telemetry(self, timeout=None):
         '''
         Reads any pending telemetry packet from the sensor.  Returns None if an
         unrecognized telemetry type was read.  Throws an exception is used on a
         sensor that doesn't support telemetry.  Blocks until telemetry is
         available, otherwise.
         '''
-        data = self.comms._read_telemetry()
+        data = self.comms._read_telemetry(timeout=timeout)
         if not data:
             return None
 
