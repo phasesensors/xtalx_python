@@ -85,6 +85,16 @@ class Comms(xtalx.usbcmd.Device):
     def _read_scope(self, size, **kwargs):
         return self.usb_dev.read(self.SCOPE_EP, size, **kwargs)
 
+    def _telemetry_flush(self):
+        '''
+        Requests the firmware discard any queued telemetry and inserts a
+        barrier in the telemetry stream.  The client must discard telemetry
+        packets until it sees the flush packet with seq_num as returned from
+        this method.
+        '''
+        rsp, _ = self._exec_command(Opcode.FLUSH_TELEMETRY)
+        return rsp.params[0]
+
     def _read_telemetry(self, size=128, **kwargs):
         return self.usb_dev.read(self.TELEMETRY_EP, size, **kwargs)
 

@@ -211,6 +211,9 @@ class Comms:
     def _read_scope(self, size, **kwargs):
         return self.usb_dev.read(self.SCOPE_EP, size, **kwargs)
 
+    def _telemetry_flush(self):
+        raise TelemetryNotSupportedException()
+
     def _read_telemetry(self, _size=128, **_kwargs):
         raise TelemetryNotSupportedException()
 

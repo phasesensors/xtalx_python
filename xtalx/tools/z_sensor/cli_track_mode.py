@@ -13,8 +13,8 @@ TELEMETRY_RUNNING = True
 
 
 def poll_telemetry(tc, zl):
-    # Discard the first telemetry packet since it will be stale.
-    tc.read_telemetry()
+    # Discard any stale telemetry queued on the sensor.
+    tc.flush_telemetry()
     seq_num = None
 
     while TELEMETRY_RUNNING:
