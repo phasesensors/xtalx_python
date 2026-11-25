@@ -193,6 +193,10 @@ class ParsedSweepResult:
 
         self.rotate(theta_rad)
 
+    def __repr__(self):
+        return ('ParsedSweepResult(amplitude=%s, phase=%s, RR=%s, f=%s, z=%s)'
+                % (self.amplitude, self.phase, self.RR, self.f, self.z))
+
     def rotate(self, theta_rad):
         Z      = self.Z
         self.Z = complex(
