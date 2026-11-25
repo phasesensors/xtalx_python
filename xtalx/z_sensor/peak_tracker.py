@@ -8,6 +8,7 @@ import enum
 import numpy as np
 
 from xtalx.tools.math import Lorentzian
+import xtalx.usbcmd
 
 
 CHIRP_A      = 0.25
@@ -119,9 +120,17 @@ class PeakTracker:
 
     def _start_full_search(self):
         if self.enable_chirp:
-            self._start_chirp()
-        else:
-            self._start_peak_search_defaults()
+            try:
+                self._start_chirp()
+                return
+            except xtalx.usbcmd.CommandException as e:
+                if e.rsp.status != xtalx.usbcmd.Status.BAD_PARAM:
+                    raise
+                if e.rsp.params[0] != 1:
+                    raise
+                self.tc.warn('Chirp range not supported by firmware.')
+
+        self._start_peak_search_defaults()
 
     def _start_chirp(self):
         '''
