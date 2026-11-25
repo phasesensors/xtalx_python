@@ -442,7 +442,7 @@ class TrackerWindow(glotlib.Window, Delegate):
 
 def poll_telemetry(tc, zl, pq):
     # Discard the first telemetry packet since it will be stale.
-    tc.read_telemetry(timeout=2000)
+    tc.flush_telemetry()
     seq_num = None
 
     if pq:

@@ -42,6 +42,7 @@ class Opcode(IntEnum):
     AUTO_CHIRP          = 17
     READ_SWEEP_RESULT   = 21
     READ_TEMP_FREQ      = 22
+    FLUSH_TELEMETRY     = 23
     BAD_OPCODE          = 0xCCCC
 
 
@@ -211,6 +212,7 @@ class ParsedSweepResult:
 class TelemetryType(IntEnum):
     TEMPERATURE     = 1
     SWEEP_POINT     = 2
+    FLUSH           = 3
 
 
 class TelemetryNotSupportedException(Exception):
@@ -289,3 +291,13 @@ class TelemetrySweepPoint:
     def __repr__(self):
         return ('TelemetrySweepPoint(seq_num=%s, sweep_result=%s)'
                 % (self.seq_num, self.sweep_result))
+
+
+class TelemetryPacketFlush(btype.Struct):
+    # Known as telemetry_flush_packet in the firmware.
+    telemetry_type      = btype.uint8_t()
+    rsrv1               = btype.Array(btype.uint8_t(), 3)
+    seq_num             = btype.uint32_t()
+    flags               = btype.uint32_t()
+    rsrv2               = btype.uint32_t()
+    _EXPECTED_SIZE      = 16

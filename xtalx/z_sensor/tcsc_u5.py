@@ -11,8 +11,10 @@ from .scope_data import ScopeData
 from .tcsc_types import (SampleHeader, AutoChirpHeader, AutoChirpResult,
                          SweepEntry, SweepResult, ParsedSweepResult,
                          TelemetryType, TelemetryTemperature,
-                         TelemetryPacketSweepPoint, TelemetrySweepPoint)
+                         TelemetryPacketSweepPoint, TelemetrySweepPoint,
+                         TelemetryPacketFlush)
 from . import crystal_info
+from .. import usbcmd
 
 
 class TCSC_U5(TinCan):
@@ -291,6 +293,36 @@ class TCSC_U5(TinCan):
         '''
         return self.comms._is_telemetry_supported()
 
+    def flush_telemetry(self):
+        '''
+        Flushes all existing telemetry from the sensor.  Returns silently if
+        used on a sensor that doesn't support telemetry or if flushing is not
+        supported.
+        '''
+        if not self.is_telemetry_supported():
+            return
+
+        # Request a telemetry flush.
+        try:
+            seq_num = self.comms._telemetry_flush()
+        except usbcmd.CommandException as e:
+            if e.rsp.status == usbcmd.Status.BAD_OPCODE:
+                # Just read the first telemetry packet and discard it since
+                # there is no telemetry queue to flush on this firmware.
+                self.read_telemetry()
+                return
+            raise
+
+        # Drain the telemetry queue.
+        while True:
+            t = self.read_telemetry()
+            if t is None:
+                continue
+            if not isinstance(t, TelemetryPacketFlush):
+                continue
+            if t.seq_num == seq_num:
+                return
+
     def read_telemetry(self, timeout=None):
         '''
         Reads any pending telemetry packet from the sensor.  Returns None if an
@@ -327,5 +359,7 @@ class TCSC_U5(TinCan):
             theta_rad = 0   # What to do about this?
             return TelemetrySweepPoint._from_packet(self, tpsp, freq, nbufs,
                                                     theta_rad)
+        if data[0] == TelemetryType.FLUSH:
+            return TelemetryPacketFlush.unpack(data)
 
         return None
