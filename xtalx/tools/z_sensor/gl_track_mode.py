@@ -442,7 +442,7 @@ class TrackerWindow(glotlib.Window, Delegate):
 
 def poll_telemetry(tc, zl, pq):
     # Discard the first telemetry packet since it will be stale.
-    tc.read_telemetry()
+    tc.read_telemetry(timeout=2000)
     seq_num = None
 
     if pq:
@@ -452,7 +452,7 @@ def poll_telemetry(tc, zl, pq):
             pq = None
 
     while TELEMETRY_RUNNING:
-        t = tc.read_telemetry()
+        t = tc.read_telemetry(timeout=2000)
         if not t:
             continue
 
