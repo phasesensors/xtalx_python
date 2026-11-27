@@ -85,6 +85,16 @@ class Comms(xtalx.usbcmd.Device):
     def _read_scope(self, size, **kwargs):
         return self.usb_dev.read(self.SCOPE_EP, size, **kwargs)
 
+    def _telemetry_flush(self):
+        '''
+        Requests the firmware discard any queued telemetry and inserts a
+        barrier in the telemetry stream.  The client must discard telemetry
+        packets until it sees the flush packet with seq_num as returned from
+        this method.
+        '''
+        rsp, _ = self._exec_command(Opcode.FLUSH_TELEMETRY)
+        return rsp.params[0]
+
     def _read_telemetry(self, size=128, **kwargs):
         return self.usb_dev.read(self.TELEMETRY_EP, size, **kwargs)
 
@@ -135,11 +145,16 @@ class Comms(xtalx.usbcmd.Device):
         self._exec_command(Opcode.AUTO_CHIRP, [skip0, skip1, amplitude])
 
     def _sweep_async(self, amplitude, freq_tuples, bulk_data):
+        '''
+        Returns the recommended sleep duration in ms and the sweep's generation
+        number.  The generation number will be 0 (an invalid generation) for
+        sensors that don't report the generation (2.0.1 and earlier).
+        '''
         rsp, _ = self._exec_command(
                 Opcode.START_SWEEPER,
                 [len(freq_tuples), amplitude, True],
                 bulk_data)
-        return rsp.params[0]
+        return rsp.params[0], rsp.params[1]
 
     def _read_sweep_data(self, _size):
         while True:
@@ -188,10 +203,10 @@ class Comms(xtalx.usbcmd.Device):
                 [*temp_hz_u, *center_hz_u, *width_hz_u])
         return EvalFreqsResponseStruct.unpack(data)
 
-    def _gen_hires_freqs(self, f0, width, N):
+    def _gen_hires_freqs(self, f0, width, N, span=0):
         f0_u    = struct.unpack('<2I', struct.pack('<d', f0))
         width_u = struct.unpack('<2I', struct.pack('<d', width))
         _rsp, data = self._exec_command(
                 Opcode.GEN_HIRES_FREQS,
-                [*f0_u, *width_u, N])
+                [*f0_u, *width_u, N | (span << 16)])
         return data

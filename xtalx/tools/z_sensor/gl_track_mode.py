@@ -441,10 +441,6 @@ class TrackerWindow(glotlib.Window, Delegate):
 
 
 def poll_telemetry(tc, zl, pq):
-    # Discard the first telemetry packet since it will be stale.
-    tc.read_telemetry()
-    seq_num = None
-
     if pq:
         if isinstance(pq, simple_tsdb.PushQueue):
             path = 'sensor_data/tincan_temp_data/' + tc.serial_num
@@ -452,16 +448,9 @@ def poll_telemetry(tc, zl, pq):
             pq = None
 
     while TELEMETRY_RUNNING:
-        t = tc.read_telemetry()
+        t = tc.read_telemetry(timeout=0)
         if not t:
             continue
-
-        if seq_num is None:
-            seq_num = t.seq_num
-        elif t.seq_num != seq_num + 1:
-            lost_seqs = t.seq_num - seq_num - 1
-            tc.info('Lost %u telemetry packets.' % lost_seqs)
-        seq_num = t.seq_num
 
         if isinstance(t, xtalx.z_sensor.tcsc_types.TelemetryTemperature):
             zl.log_telemetry_temp(tc, t)
@@ -480,11 +469,15 @@ def start_telemetry_thread(tc, zl, pq):
     TELEMETRY_THREAD.start()
 
 
-def stop_telemetry_thread():
+def stop_telemetry_thread(tc):
     global TELEMETRY_RUNNING
 
     TELEMETRY_RUNNING = False
     if TELEMETRY_THREAD is not None:
+        # The telemetry thread uses an infinite wait for telemetry data; send
+        # a flush command to generate a telemetry event immediately and wake
+        # the telemetry thread up so it can exit.
+        tc.comms._telemetry_flush()
         TELEMETRY_THREAD.join()
 
 
@@ -502,6 +495,9 @@ def main(rv):
               tc, za.amplitude, za.nfreqs,
               za.search_time_secs, za.sweep_time_secs,
               settle_ms=za.settle_ms, delegate=tw)
+
+    tc.flush_telemetry()
+
     pt.start_threaded()
     start_telemetry_thread(tc, zl, pq)
 
@@ -511,7 +507,7 @@ def main(rv):
         print()
     finally:
         pt.stop_threaded()
-        stop_telemetry_thread()
+        stop_telemetry_thread(tc)
 
     if pq:
         pq.flush()

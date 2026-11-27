@@ -42,6 +42,7 @@ class Opcode(IntEnum):
     AUTO_CHIRP          = 17
     READ_SWEEP_RESULT   = 21
     READ_TEMP_FREQ      = 22
+    FLUSH_TELEMETRY     = 23
     BAD_OPCODE          = 0xCCCC
 
 
@@ -182,19 +183,36 @@ class ParsedSweepResult:
         self.RR        = list(sweep_result.RR)
         self.nbufs     = nbufs
         self.f         = freq
+        self._yield_Y  = yield_Y
+        self.theta_rad = 0
 
         probea = phasors[0]
         sigin  = phasors[1]
-        Z      = -probea * rf / sigin
+        self.Z = -probea * rf / sigin
+        self.Y = None
+        self.z = None
+
+        self.rotate(theta_rad)
+
+    def __repr__(self):
+        return ('ParsedSweepResult(amplitude=%s, phase=%s, RR=%s, f=%s, z=%s)'
+                % (self.amplitude, self.phase, self.RR, self.f, self.z))
+
+    def rotate(self, theta_rad):
+        Z      = self.Z
         self.Z = complex(
                 Z.real * math.cos(theta_rad) - Z.imag * math.sin(theta_rad),
                 Z.real * math.sin(theta_rad) + Z.imag * math.cos(theta_rad))
         self.Y = 1 / self.Z
-        self.z = self.Y if yield_Y else self.Z
+        self.z = self.Y if self._yield_Y else self.Z
+
+        self.theta_rad += theta_rad
 
 
 class TelemetryType(IntEnum):
     TEMPERATURE     = 1
+    SWEEP_POINT     = 2
+    FLUSH           = 3
 
 
 class TelemetryNotSupportedException(Exception):
@@ -202,6 +220,7 @@ class TelemetryNotSupportedException(Exception):
 
 
 class TelemetryPacketTemperature(btype.Struct):
+    # Known as telemetry_t_packet in the firmware.
     telemetry_type      = btype.uint8_t()
     rsrv1               = btype.Array(btype.uint8_t(), 3)
     seq_num             = btype.uint32_t()
@@ -221,6 +240,11 @@ class TelemetryTemperature:
         self.temp_c    = temp_c
         self.time_ns   = time_ns or sensor.comms.time_ns_increasing()
 
+    def __repr__(self):
+        return ('TelemetryTemperature(seq_num=%s, flags=0x%08X, temp_freq=%s, '
+                'temp_c=%s)' % (self.seq_num, self.flags, self.temp_freq,
+                                self.temp_c))
+
     @staticmethod
     def _from_packet(sensor, packet):
         tp = TelemetryPacketTemperature.unpack(packet)
@@ -235,3 +259,45 @@ class TelemetryTemperature:
             'temp_freq_hz' : temp_freq,
             'temp_c'       : temp_c,
         }
+
+
+class TelemetryPacketSweepPoint(btype.Struct):
+    # Known as telemetry_z_packet in the firmware.
+    telemetry_type      = btype.uint8_t()
+    rsrv1               = btype.Array(btype.uint8_t(), 3)
+    seq_num             = btype.uint32_t()
+    flags               = btype.uint32_t()
+    rsrv2               = btype.uint32_t()
+    sweep_generation    = btype.uint16_t()
+    sweep_index         = btype.uint16_t()
+    dds_skip            = btype.uint32_t()
+    sweep_result        = SweepResult()
+    _EXPECTED_SIZE      = 88
+
+
+class TelemetrySweepPoint:
+    def __init__(self, sensor, seq_num, sweep_result):
+        self.sensor       = sensor
+        self.seq_num      = seq_num
+        self.sweep_result = sweep_result
+
+    @staticmethod
+    def _from_packet(sensor, tpsp, freq, nbufs, theta_rad):
+        return TelemetrySweepPoint(
+            sensor, tpsp.seq_num,
+            ParsedSweepResult(tpsp.sweep_result, sensor.einfo.r_feedback,
+                              freq, nbufs, sensor.yield_Y, theta_rad))
+
+    def __repr__(self):
+        return ('TelemetrySweepPoint(seq_num=%s, sweep_result=%s)'
+                % (self.seq_num, self.sweep_result))
+
+
+class TelemetryPacketFlush(btype.Struct):
+    # Known as telemetry_flush_packet in the firmware.
+    telemetry_type      = btype.uint8_t()
+    rsrv1               = btype.Array(btype.uint8_t(), 3)
+    seq_num             = btype.uint32_t()
+    flags               = btype.uint32_t()
+    rsrv2               = btype.uint32_t()
+    _EXPECTED_SIZE      = 16

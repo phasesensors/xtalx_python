@@ -10,8 +10,11 @@ from .tincan import TinCan
 from .scope_data import ScopeData
 from .tcsc_types import (SampleHeader, AutoChirpHeader, AutoChirpResult,
                          SweepEntry, SweepResult, ParsedSweepResult,
-                         TelemetryType, TelemetryTemperature)
+                         TelemetryType, TelemetryTemperature,
+                         TelemetryPacketSweepPoint, TelemetrySweepPoint,
+                         TelemetryPacketFlush)
 from . import crystal_info
+from .. import usbcmd
 
 
 class TCSC_U5(TinCan):
@@ -38,7 +41,8 @@ class TCSC_U5(TinCan):
         self.crystal_info = crystal_info.CRYSTAL_INFOS.get(
                 self.ginfo.dv_nominal_hz)
 
-        self._sweep_params = None
+        self._sweep_params     = None
+        self._sweep_generation = None
 
     def fft_limit(self):
         return self.ginfo.aclk / 4
@@ -175,27 +179,65 @@ class TCSC_U5(TinCan):
                              offset=AutoChirpHeader._STRUCT.size)
         return AutoChirpResult(hdr, bins)
 
-    def sweep_async(self, amplitude, freq_tuples, ndiscards=2):
+    def sweep_async(self, amplitude, freq_tuples, ndiscards=None):
+        '''
+        Starts a sweep and returns (sleep_s, sleep_ms), the time the sensor
+        recommends waiting before calling read_sweep_data().
+
+        Each entry of freq_tuples is either (f, nbufs) or
+        (f, nbufs, ndiscards); all entries must have the same form.  At
+        each frequency the sensor first discards ndiscards buffers, letting
+        the crystal settle, and then measures nbufs buffers.  Buffers are
+        1 ms long.
+
+        With (f, nbufs) entries, the first frequency discards the ndiscards
+        argument (default 2) and every later frequency discards 5.  With
+        (f, nbufs, ndiscards) entries, each frequency uses its own value and
+        the ndiscards argument must be left as None.
+        '''
         assert 2 <= len(freq_tuples) <= self.ginfo.max_sweep_entries
+
+        lens = {len(ft) for ft in freq_tuples}
+        if lens == {2}:
+            if ndiscards is None:
+                ndiscards = 2
+            entries = [(f, nbufs, ndiscards if i == 0 else 5)
+                       for i, (f, nbufs) in enumerate(freq_tuples)]
+        elif lens == {3}:
+            if ndiscards is not None:
+                raise ValueError('ndiscards argument is not allowed with '
+                                 '(f, nbufs, ndiscards) entries')
+            entries = freq_tuples
+        else:
+            raise ValueError('freq_tuples entries must all be (f, nbufs) '
+                             'or all be (f, nbufs, ndiscards)')
 
         self._sweep_params = []
         bulk_data = b''
-        for i, (f, nbufs) in enumerate(freq_tuples):
+        for f, nbufs, nd in entries:
+            if not 0 <= nd <= 0xFFFF or not 0 <= nbufs <= 0xFFFF:
+                raise ValueError('ndiscards and nbufs must be 0-65535, got '
+                                 '%s and %s at %.3f Hz' % (nd, nbufs, f))
             dds_skip = int(round(2**32 * (f / self.ginfo.dclk)))
             freq     = self.ginfo.dclk * dds_skip / 2**32
-            bulk_data += SweepEntry(dds_skip=dds_skip,
-                                    ndiscards=ndiscards if i == 0 else 5,
+            bulk_data += SweepEntry(dds_skip=dds_skip, ndiscards=nd,
                                     nbufs=nbufs).pack()
             self._sweep_params.append((freq, nbufs))
 
-        sleep_ms = self.comms._sweep_async(amplitude, freq_tuples, bulk_data)
+        sleep_ms, self._sweep_generation = self.comms._sweep_async(amplitude,
+                                                                   freq_tuples,
+                                                                   bulk_data)
 
         wakeup_time = time.localtime(time.time() + sleep_ms / 1000)
 
-        self.info('Sweeping %u frequencies from %.3f-%.3f Hz.  Sensor '
+        if self._sweep_generation is not None:
+            gen_str = ' [generation %u]' % self._sweep_generation
+        else:
+            gen_str = ''
+        self.info('Sweeping %u frequencies from %.3f-%.3f Hz%s.  Sensor '
                   'recommends sleep of %u ms until %s.' %
                   (len(freq_tuples), freq_tuples[0][0], freq_tuples[-1][0],
-                   sleep_ms, time.asctime(wakeup_time)))
+                   gen_str, sleep_ms, time.asctime(wakeup_time)))
 
         return sleep_ms / 1000, sleep_ms
 
@@ -263,14 +305,31 @@ class TCSC_U5(TinCan):
             viscosity_cp     = None
         return (temp_c, density_g_per_ml, viscosity_cp)
 
-    def gen_hires_freqs(self, f0, width, N):
+    def gen_hires_freqs(self, f0, hwhm, N, span=0):
         '''
-        Generate a list of hi-resolution frequencies to be measured, centered
-        on the peak at f0 of the specified width, with N specifying the number
-        of frequencies in each wing.  A total of 2N + 1 frequencies will be
-        returned.
+        Generate a list of hi-resolution frequencies to be measured around
+        a peak centered at f0, with N specifying the number of frequencies
+        in each wing.  A total of 2N + 1 frequencies will be returned.  N
+        must be 2-511: the firmware's sweep fit needs at least 5
+        frequencies.
+
+        hwhm is the peak's half-width at half-maximum, in Hz (half of the
+        FWHM).  The frequencies run from f0 - span * hwhm to
+        f0 + span * hwhm, with f0 itself in the middle.  A span of 0
+        selects the firmware default of 6, i.e. f0 +/- 6 * hwhm.  Other
+        spans need firmware 0x202 or later.
         '''
-        data = self.comms._gen_hires_freqs(f0, width, N)
+        if not 2 <= N <= 511:
+            raise ValueError('N must be 2-511, got %s' % N)
+        if span:
+            if not 1 <= span <= 0xFFFF:
+                raise ValueError('span must be 0-65535, got %s' % span)
+            if self.fw_version < 0x202:
+                raise ValueError('span requires firmware 0x202 or later; '
+                                 'this sensor has 0x%X' % self.fw_version)
+            data = self.comms._gen_hires_freqs(f0, hwhm, N, span)
+        else:
+            data = self.comms._gen_hires_freqs(f0, hwhm, N)
         N    = 2*N + 1
         size = 8*N
         assert len(data) == size
@@ -283,18 +342,73 @@ class TCSC_U5(TinCan):
         '''
         return self.comms._is_telemetry_supported()
 
-    def read_telemetry(self):
+    def flush_telemetry(self):
+        '''
+        Flushes all existing telemetry from the sensor.  Returns silently if
+        used on a sensor that doesn't support telemetry or if flushing is not
+        supported.
+        '''
+        if not self.is_telemetry_supported():
+            return
+
+        # Request a telemetry flush.
+        try:
+            seq_num = self.comms._telemetry_flush()
+        except usbcmd.CommandException as e:
+            if e.rsp.status == usbcmd.Status.BAD_OPCODE:
+                # Just read the first telemetry packet and discard it since
+                # there is no telemetry queue to flush on this firmware.
+                self.read_telemetry()
+                return
+            raise
+
+        # Drain the telemetry queue.
+        while True:
+            t = self.read_telemetry()
+            if t is None:
+                continue
+            if not isinstance(t, TelemetryPacketFlush):
+                continue
+            if t.seq_num == seq_num:
+                return
+
+    def read_telemetry(self, timeout=None):
         '''
         Reads any pending telemetry packet from the sensor.  Returns None if an
-        unrecognized telemetry type was read.  Throws an exception is used on a
-        sensor that doesn't support telemetry.  Blocks until telemetry is
-        available, otherwise.
+        unrecognized telemetry type was read or if the received telemetry is
+        considered stale.  Throws an exception if used on a sensor that
+        doesn't support telemetry.  Blocks until telemetry is available,
+        otherwise.
+
+        Can return the following types:
+            TelemetryTemperature - for a T telementry packet
+            ParsedSweepResult - for a completed sweep point
         '''
-        data = self.comms._read_telemetry()
+        data = self.comms._read_telemetry(timeout=timeout)
         if not data:
             return None
 
         if data[0] == TelemetryType.TEMPERATURE:
             return TelemetryTemperature._from_packet(self, data)
+        if data[0] == TelemetryType.SWEEP_POINT:
+            tpsp = TelemetryPacketSweepPoint.unpack(data)
+            if tpsp.sweep_generation != self._sweep_generation:
+                return None
+            if not self._sweep_params:
+                return None
+            if tpsp.sweep_index >= len(self._sweep_params):
+                return None
+
+            freq = self.ginfo.dclk * tpsp.dds_skip / 2**32
+            exp_freq = self._sweep_params[tpsp.sweep_index][0]
+            if freq != exp_freq:
+                return None
+
+            nbufs = self._sweep_params[tpsp.sweep_index][1]
+            theta_rad = 0   # What to do about this?
+            return TelemetrySweepPoint._from_packet(self, tpsp, freq, nbufs,
+                                                    theta_rad)
+        if data[0] == TelemetryType.FLUSH:
+            return TelemetryPacketFlush.unpack(data)
 
         return None

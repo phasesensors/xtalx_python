@@ -211,6 +211,9 @@ class Comms:
     def _read_scope(self, size, **kwargs):
         return self.usb_dev.read(self.SCOPE_EP, size, **kwargs)
 
+    def _telemetry_flush(self):
+        raise TelemetryNotSupportedException()
+
     def _read_telemetry(self, _size=128, **_kwargs):
         raise TelemetryNotSupportedException()
 
@@ -331,11 +334,15 @@ class Comms:
                              amplitude=amplitude).pack())
 
     def _sweep_async(self, amplitude, freq_tuples, bulk_data):
+        '''
+        Returns the recommended sleep duration in ms and 0 for the sweep's
+        generation number since 1.x.x sensors never report the sweep generation.
+        '''
         params = StartSweepPayload(nfreqs=len(freq_tuples),
                                    amplitude=amplitude,
                                    double_precision=True).pack()
         rsp = self._exec_command(Opcode.START_SWEEPER, params, bulk_data)
-        return rsp.params[0]
+        return rsp.params[0], 0
 
     def _read_sweep_data(self, size):
         return self._read_rsp(size)
