@@ -203,10 +203,10 @@ class Comms(xtalx.usbcmd.Device):
                 [*temp_hz_u, *center_hz_u, *width_hz_u])
         return EvalFreqsResponseStruct.unpack(data)
 
-    def _gen_hires_freqs(self, f0, width, N):
+    def _gen_hires_freqs(self, f0, width, N, span=0):
         f0_u    = struct.unpack('<2I', struct.pack('<d', f0))
         width_u = struct.unpack('<2I', struct.pack('<d', width))
         _rsp, data = self._exec_command(
                 Opcode.GEN_HIRES_FREQS,
-                [*f0_u, *width_u, N])
+                [*f0_u, *width_u, N | (span << 16)])
         return data
