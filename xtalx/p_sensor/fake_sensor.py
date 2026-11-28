@@ -70,17 +70,18 @@ class FakeSensor:
     temperature in degrees C and p_poly(Fp, Ft) gives the pressure in PSI,
     where Fp and Ft are the pressure and temperature crystal frequencies in
     Hz.  The crystal frequencies are taken from the pressure_freq_hz and
-    temp_freq_hz fields, which may be changed at any time to simulate a
-    change in pressure or temperature.
+    temp_freq_hz fields, which the constructor computes from pressure_psi
+    and temp_c with compute_freqs() and which may be changed at any time to
+    simulate a change in pressure or temperature.
     '''
-    def __init__(self, serial_num, t_poly, p_poly, pressure_freq_hz=52000,
-                 temp_freq_hz=262000):
-        self.serial_num       = serial_num
-        self.t_poly           = t_poly
-        self.p_poly           = p_poly
-        self.pressure_freq_hz = pressure_freq_hz
-        self.temp_freq_hz     = temp_freq_hz
-        self.last_time_ns     = 0
+    def __init__(self, serial_num, t_poly, p_poly, pressure_psi=13.5,
+                 temp_c=22):
+        self.serial_num   = serial_num
+        self.t_poly       = t_poly
+        self.p_poly       = p_poly
+        self.last_time_ns = 0
+        (self.temp_freq_hz,
+         self.pressure_freq_hz) = self.compute_freqs(temp_c, pressure_psi)
 
     def __str__(self):
         return 'FakeSensor(%s)' % self.serial_num
