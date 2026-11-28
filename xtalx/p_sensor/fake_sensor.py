@@ -2,6 +2,9 @@
 # All rights reserved.
 import time
 
+import numpy
+from numpy.polynomial import polynomial, polyutils
+
 
 class Measurement:
     '''
@@ -25,6 +28,36 @@ class Measurement:
         self.temp_c        = temp_c
         self.pressure_freq = pressure_freq
         self.temp_freq     = temp_freq
+
+
+def _invert_poly(coefs, value, domain, window=(-1, 1)):
+    '''
+    Solves p(x) = value for x, where p is the polynomial with the given
+    coefficients evaluated after mapping x linearly from domain onto window,
+    as numpy.polynomial.Polynomial(coefs, domain, window) does.  If there are
+    several real solutions, returns the one nearest the middle of the domain.
+    Raises ValueError if there is no real solution.
+    '''
+    c     = numpy.array(coefs, dtype=float)
+    c[0] -= value
+    mid   = (window[0] + window[1]) / 2
+    roots = sorted(polynomial.polyroots(c), key=lambda r: abs(r - mid))
+    for r in roots:
+        if abs(r.imag) <= 1e-6:
+            u = r.real
+            break
+    else:
+        raise ValueError('No real solution for %s.' % value)
+
+    # Refine the root with a few Newton-Raphson iterations.
+    dc = polynomial.polyder(c)
+    for _ in range(3):
+        d = polynomial.polyval(u, dc)
+        if d == 0:
+            break
+        u -= polynomial.polyval(u, c) / d
+
+    return float(polyutils.mapdomain(u, window, domain))
 
 
 class FakeSensor:
@@ -60,6 +93,31 @@ class FakeSensor:
         ft = self.temp_freq_hz
         return Measurement(self, self.time_ns_increasing(),
                            self.p_poly(fp, ft), self.t_poly(ft), fp, ft)
+
+    def compute_freqs(self, temp_c, pressure_psi):
+        '''
+        Inverts the calibration polynomials, returning the crystal
+        frequencies (temp_freq, pressure_freq) in Hz for which t_poly gives
+        temp_c and p_poly gives pressure_psi.  The temperature frequency is
+        found first, then the pressure frequency at that temperature
+        frequency.  Where a polynomial has several real solutions, the one
+        nearest the middle of its calibration window is used.  Raises
+        ValueError if there is no real solution.
+
+        This relies on the internals of xtalx's PolynomialFit1D (a numpy
+        Polynomial in pf) and PolynomialFit2D (x_domain, y_domain and a
+        coefs matrix with coefs[i][j] the coefficient of x**i * y**j on the
+        mapped [-1, 1] range).
+        '''
+        pf = self.t_poly.pf
+        ft = _invert_poly(pf.coef, temp_c, pf.domain, pf.window)
+
+        C  = numpy.asarray(self.p_poly.coefs)
+        v  = polyutils.mapdomain(ft, self.p_poly.y_domain, (-1, 1))
+        fp = _invert_poly(C @ v**numpy.arange(C.shape[1]), pressure_psi,
+                          self.p_poly.x_domain)
+
+        return ft, fp
 
     def time_ns_increasing(self):
         '''
