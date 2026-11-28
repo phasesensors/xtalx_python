@@ -1,5 +1,6 @@
 # Copyright (c) 2026 by Phase Advanced Sensor Systems, Inc.
 # All rights reserved.
+import threading
 import time
 
 import numpy
@@ -71,17 +72,21 @@ class FakeSensor:
     where Fp and Ft are the pressure and temperature crystal frequencies in
     Hz.  The crystal frequencies are taken from the pressure_freq_hz and
     temp_freq_hz fields, which the constructor computes from pressure_psi
-    and temp_c with compute_freqs() and which may be changed at any time to
-    simulate a change in pressure or temperature.
+    and temp_c with compute_freqs().  To simulate a change in pressure or
+    temperature, call set_temp_pressure(), which may be called from another
+    thread while measurements are being read, or set the fields directly.
     '''
     def __init__(self, serial_num, t_poly, p_poly, pressure_psi=13.5,
                  temp_c=22):
-        self.serial_num   = serial_num
-        self.t_poly       = t_poly
-        self.p_poly       = p_poly
-        self.last_time_ns = 0
-        (self.temp_freq_hz,
-         self.pressure_freq_hz) = self.compute_freqs(temp_c, pressure_psi)
+        self.serial_num       = serial_num
+        self.t_poly           = t_poly
+        self.p_poly           = p_poly
+        self.last_time_ns     = 0
+        self.lock             = threading.Lock()
+        self.temp_freq_hz     = None
+        self.pressure_freq_hz = None
+
+        self.set_temp_pressure(temp_c, pressure_psi)
 
     def __str__(self):
         return 'FakeSensor(%s)' % self.serial_num
@@ -90,10 +95,24 @@ class FakeSensor:
         '''
         Returns a Measurement taken at the current crystal frequencies.
         '''
-        fp = self.pressure_freq_hz
-        ft = self.temp_freq_hz
+        with self.lock:
+            fp = self.pressure_freq_hz
+            ft = self.temp_freq_hz
         return Measurement(self, self.time_ns_increasing(),
                            self.p_poly(fp, ft), self.t_poly(ft), fp, ft)
+
+    def set_temp_pressure(self, temp_c, pressure_psi):
+        '''
+        Sets the crystal frequencies so that the sensor reads temp_c and
+        pressure_psi.  Both frequencies change together, so a measurement
+        read from another thread never pairs a new frequency with an old
+        one.  Raises ValueError, leaving the frequencies unchanged, if
+        compute_freqs() finds no solution.
+        '''
+        ft, fp = self.compute_freqs(temp_c, pressure_psi)
+        with self.lock:
+            self.temp_freq_hz     = ft
+            self.pressure_freq_hz = fp
 
     def compute_freqs(self, temp_c, pressure_psi):
         '''
