@@ -1,6 +1,7 @@
 # Copyright (c) 2020-2023 by Phase Advanced Sensor Systems Corp.
 import xtalx.tools.usb
 
+from .fake_sensor import FakeSensor
 from .xhti import XHTI
 from .xhtis import XHTIS
 from .xhtism import XHTISM
@@ -61,6 +62,7 @@ __all__ = ['find_xti',
            'find_one_xmhti',
            'make_xmhti',
            'make',
+           'FakeSensor',
            'XTI',
            'XHTI',
            'XHTIS',
