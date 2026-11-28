@@ -7,6 +7,12 @@ import numpy
 from numpy.polynomial import polynomial, polyutils
 
 
+# Ambient conditions: the default readings, and the point where the
+# simulated measurement error is just its offset.
+AMBIENT_PSI = 13.5
+AMBIENT_C   = 22
+
+
 class Measurement:
     '''
     Object encapsulating a single FakeSensor measurement.  The following
@@ -15,11 +21,16 @@ class Measurement:
         sensor - Reference to the FakeSensor that generated the Measurement.
         time_ns - Time of the measurement in nanoseconds since the epoch.
         pressure_psi - Pressure computed from the crystal frequencies using
-            the sensor's pressure polynomial.
+            the sensor's pressure polynomial, plus the sensor's simulated
+            pressure error.
         temp_c - Temperature computed from the temperature crystal frequency
-            using the sensor's temperature polynomial.
+            using the sensor's temperature polynomial, plus the sensor's
+            simulated temperature error.
         pressure_freq - Pressure crystal frequency in Hz.
         temp_freq - Temperature crystal frequency in Hz.
+
+    The frequencies are the ones that give pressure_psi and temp_c through the
+    sensor's polynomials, so they include the simulated errors as well.
     '''
     def __init__(self, sensor, time_ns, pressure_psi, temp_c, pressure_freq,
                  temp_freq):
@@ -75,16 +86,35 @@ class FakeSensor:
     and temp_c with compute_freqs().  To simulate a change in pressure or
     temperature, call set_temp_pressure(), which may be called from another
     thread while measurements are being read, or set the fields directly.
+
+    To make sensors that measure the same conditions disagree the way real
+    ones do, each measurement can include a simulated error that varies
+    linearly with the reading, relative to ambient conditions (AMBIENT_PSI
+    and AMBIENT_C):
+
+        pressure error = p_error_offset_psi +
+                         p_error_slope * (pressure - AMBIENT_PSI)
+        temperature error = t_error_offset_c +
+                            t_error_slope * (temperature - AMBIENT_C)
+
+    where pressure and temperature are the polynomial values.  For example,
+    p_error_slope=1e-4 gives an error of about 1.5 PSI at 15000 PSI.  All of
+    the error terms default to 0.
     '''
-    def __init__(self, serial_num, t_poly, p_poly, pressure_psi=13.5,
-                 temp_c=22):
-        self.serial_num       = serial_num
-        self.t_poly           = t_poly
-        self.p_poly           = p_poly
-        self.last_time_ns     = 0
-        self.lock             = threading.Lock()
-        self.temp_freq_hz     = None
-        self.pressure_freq_hz = None
+    def __init__(self, serial_num, t_poly, p_poly, pressure_psi=AMBIENT_PSI,
+                 temp_c=AMBIENT_C, *, p_error_offset_psi=0, p_error_slope=0,
+                 t_error_offset_c=0, t_error_slope=0):
+        self.serial_num         = serial_num
+        self.t_poly             = t_poly
+        self.p_poly             = p_poly
+        self.p_error_offset_psi = p_error_offset_psi
+        self.p_error_slope      = p_error_slope
+        self.t_error_offset_c   = t_error_offset_c
+        self.t_error_slope      = t_error_slope
+        self.last_time_ns       = 0
+        self.lock               = threading.Lock()
+        self.temp_freq_hz       = None
+        self.pressure_freq_hz   = None
 
         self.set_temp_pressure(temp_c, pressure_psi)
 
@@ -93,21 +123,31 @@ class FakeSensor:
 
     def read_measurement(self):
         '''
-        Returns a Measurement taken at the current crystal frequencies.
+        Returns a Measurement taken at the current crystal frequencies,
+        including the simulated errors.  The perturbed pressure and temperature
+        are converted back to crystal frequencies with compute_freqs(), and the
+        Measurement's pressure and temperature are then evaluated from those
+        frequencies, so the two match exactly, as they do on a real sensor.
+        Raises ValueError if compute_freqs() finds no solution.
         '''
         with self.lock:
             fp = self.pressure_freq_hz
             ft = self.temp_freq_hz
+        p  = self.p_poly(fp, ft)
+        t  = self.t_poly(ft)
+        p += self.p_error_offset_psi + self.p_error_slope * (p - AMBIENT_PSI)
+        t += self.t_error_offset_c + self.t_error_slope * (t - AMBIENT_C)
+        ft, fp = self.compute_freqs(t, p)
         return Measurement(self, self.time_ns_increasing(),
                            self.p_poly(fp, ft), self.t_poly(ft), fp, ft)
 
     def set_temp_pressure(self, temp_c, pressure_psi):
         '''
         Sets the crystal frequencies so that the sensor reads temp_c and
-        pressure_psi.  Both frequencies change together, so a measurement
-        read from another thread never pairs a new frequency with an old
-        one.  Raises ValueError, leaving the frequencies unchanged, if
-        compute_freqs() finds no solution.
+        pressure_psi, before any simulated errors.  Both frequencies change
+        together, so a measurement read from another thread never pairs a
+        new frequency with an old one.  Raises ValueError, leaving the
+        frequencies unchanged, if compute_freqs() finds no solution.
         '''
         ft, fp = self.compute_freqs(temp_c, pressure_psi)
         with self.lock:
