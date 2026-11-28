@@ -1,5 +1,6 @@
 # Copyright (c) 2026 by Phase Advanced Sensor Systems, Inc.
 # All rights reserved.
+import random
 import threading
 import time
 
@@ -22,15 +23,16 @@ class Measurement:
         time_ns - Time of the measurement in nanoseconds since the epoch.
         pressure_psi - Pressure computed from the crystal frequencies using
             the sensor's pressure polynomial, plus the sensor's simulated
-            pressure error.
+            pressure error and noise.
         temp_c - Temperature computed from the temperature crystal frequency
             using the sensor's temperature polynomial, plus the sensor's
-            simulated temperature error.
+            simulated temperature error and noise.
         pressure_freq - Pressure crystal frequency in Hz.
         temp_freq - Temperature crystal frequency in Hz.
 
     The frequencies are the ones that give pressure_psi and temp_c through the
-    sensor's polynomials, so they include the simulated errors as well.
+    sensor's polynomials, so they include the simulated errors and noise as
+    well.
     '''
     def __init__(self, sensor, time_ns, pressure_psi, temp_c, pressure_freq,
                  temp_freq):
@@ -100,10 +102,16 @@ class FakeSensor:
     where pressure and temperature are the polynomial values.  For example,
     p_error_slope=1e-4 gives an error of about 1.5 PSI at 15000 PSI.  All of
     the error terms default to 0.
+
+    Each measurement can also include noise, drawn uniformly from
+    [-p_noise_psi, +p_noise_psi] for pressure and [-t_noise_c, +t_noise_c]
+    for temperature and added after the error.  Both default to 0.  seed
+    seeds the sensor's own random number generator, for repeatable noise.
     '''
     def __init__(self, serial_num, t_poly, p_poly, pressure_psi=AMBIENT_PSI,
                  temp_c=AMBIENT_C, *, p_error_offset_psi=0, p_error_slope=0,
-                 t_error_offset_c=0, t_error_slope=0):
+                 t_error_offset_c=0, t_error_slope=0, p_noise_psi=0,
+                 t_noise_c=0, seed=None):
         self.serial_num         = serial_num
         self.t_poly             = t_poly
         self.p_poly             = p_poly
@@ -111,6 +119,9 @@ class FakeSensor:
         self.p_error_slope      = p_error_slope
         self.t_error_offset_c   = t_error_offset_c
         self.t_error_slope      = t_error_slope
+        self.p_noise_psi        = p_noise_psi
+        self.t_noise_c          = t_noise_c
+        self.rng                = random.Random(seed)
         self.last_time_ns       = 0
         self.lock               = threading.Lock()
         self.temp_freq_hz       = None
@@ -124,11 +135,12 @@ class FakeSensor:
     def read_measurement(self):
         '''
         Returns a Measurement taken at the current crystal frequencies,
-        including the simulated errors.  The perturbed pressure and temperature
-        are converted back to crystal frequencies with compute_freqs(), and the
-        Measurement's pressure and temperature are then evaluated from those
-        frequencies, so the two match exactly, as they do on a real sensor.
-        Raises ValueError if compute_freqs() finds no solution.
+        including the simulated errors and noise.  The perturbed pressure and
+        temperature are converted back to crystal frequencies with
+        compute_freqs(), and the Measurement's pressure and temperature are
+        then evaluated from those frequencies, so the two match exactly, as
+        they do on a real sensor.  Raises ValueError if compute_freqs() finds
+        no solution.
         '''
         with self.lock:
             fp = self.pressure_freq_hz
@@ -137,6 +149,8 @@ class FakeSensor:
         t  = self.t_poly(ft)
         p += self.p_error_offset_psi + self.p_error_slope * (p - AMBIENT_PSI)
         t += self.t_error_offset_c + self.t_error_slope * (t - AMBIENT_C)
+        p += self.rng.uniform(-self.p_noise_psi, self.p_noise_psi)
+        t += self.rng.uniform(-self.t_noise_c, self.t_noise_c)
         ft, fp = self.compute_freqs(t, p)
         return Measurement(self, self.time_ns_increasing(),
                            self.p_poly(fp, ft), self.t_poly(ft), fp, ft)
@@ -144,10 +158,11 @@ class FakeSensor:
     def set_temp_pressure(self, temp_c, pressure_psi):
         '''
         Sets the crystal frequencies so that the sensor reads temp_c and
-        pressure_psi, before any simulated errors.  Both frequencies change
-        together, so a measurement read from another thread never pairs a
-        new frequency with an old one.  Raises ValueError, leaving the
-        frequencies unchanged, if compute_freqs() finds no solution.
+        pressure_psi, before any simulated errors and noise.  Both
+        frequencies change together, so a measurement read from another
+        thread never pairs a new frequency with an old one.  Raises
+        ValueError, leaving the frequencies unchanged, if compute_freqs()
+        finds no solution.
         '''
         ft, fp = self.compute_freqs(temp_c, pressure_psi)
         with self.lock:
